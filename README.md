@@ -69,7 +69,7 @@
 
 抽取、挑选确认等卡片中的 Markdown 头像按原比例嵌入聊天，**最大显示宽度 480 px，最大显示高度 420 px**，小图保持原尺寸。快捷按钮仅对当前操作人开放，点击后发送对应的文字操作。若 QQ 拒绝带按钮的消息，插件会尝试保留 Markdown，再回退为普通消息。实际展示受 QQ 开放平台为机器人的账号和场景授予的能力影响。
 
-QQ 官方群消息可以附带头像和群昵称。插件会缓存收到的资料，优先使用事件里的头像和群昵称。AstrBot 4.30.0-beta.1 的内置 QQ 适配器已保留这些字段，4.29.4 及本地验证的 4.25 版本则可能只提供 OpenID。新版事件也需要等该成员发言才会积累资料。 [QQ 群消息事件](https://bot.q.qq.com/wiki/develop/api-v2/autogen/event/group_message_create.html) · [AstrBot 适配器更新](https://github.com/AstrBotDevs/AstrBot/pull/11184)
+QQ 官方群消息可以附带头像和群昵称。插件会缓存收到的资料，优先使用事件里的头像和群昵称。AstrBot 4.26.0 的内置 QQ 适配器已保留头像，4.27.0 起还保留原始事件，可从中读取群昵称。AstrBot 4.25.0 的内置适配器只保留成员 OpenID。成员发言且 QQ 下发资料后，插件才能从事件中积累这些信息。 [QQ 群消息事件](https://bot.q.qq.com/wiki/develop/api-v2/autogen/event/group_message_create.html) · [AstrBot 4.26.0 适配器源码](https://github.com/AstrBotDevs/AstrBot/blob/v4.26.0/astrbot/core/platform/sources/qqofficial/qqofficial_platform_adapter.py)
 
 事件缺少头像时，插件会尝试腾讯头像 CDN。多人抽取会使用第一张可用头像，查不到时省略图片。缺少昵称时会显示「群友-…」。
 
