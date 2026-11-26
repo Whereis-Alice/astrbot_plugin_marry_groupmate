@@ -126,7 +126,7 @@ async def test_multiple_matches_choose_the_first_available_avatar(monkeypatch):
     event = event_for()
     url = "https://thirdqq.qlogo.cn/qqapp/app/second/640"
     avatar_lookup = AsyncMock(return_value={"first": None, "second": url})
-    markup = AsyncMock(return_value="![群友头像 #420px #420px](example)")
+    markup = AsyncMock(return_value="![群友头像 #128px #128px](example)")
     posted = AsyncMock(return_value=200)
     monkeypatch.setattr(draw, "get_avatar_sources", avatar_lookup)
     monkeypatch.setattr(official_draw, "markdown_image", markup)
@@ -147,7 +147,7 @@ async def test_multiple_matches_choose_the_first_available_avatar(monkeypatch):
     avatar_lookup.assert_awaited_once_with(plugin, event, ["first", "second"])
     markup.assert_awaited_once_with(url)
     assert (
-        "![群友头像 #420px #420px]" in posted.await_args.args[2]["markdown"]["content"]
+        "![群友头像 #128px #128px]" in posted.await_args.args[2]["markdown"]["content"]
     )
 
 
@@ -222,12 +222,13 @@ class ImageResponse:
 @pytest.mark.parametrize(
     ("size", "rendered"),
     [
-        ((960, 320), "#480px #160px"),
-        ((300, 840), "#150px #420px"),
+        ((960, 320), "#128px #43px"),
+        ((300, 840), "#79px #220px"),
+        ((640, 640), "#128px #128px"),
         ((120, 70), "#120px #70px"),
     ],
 )
-async def test_avatars_fit_both_display_limits_at_their_original_ratio(
+async def test_avatar_display_bounds_preserve_aspect_ratio_and_source_url(
     monkeypatch, size, rendered
 ):
     buffer = BytesIO()
@@ -246,8 +247,10 @@ async def test_avatars_fit_both_display_limits_at_their_original_ratio(
 
     monkeypatch.setattr(qq_official_avatars.aiohttp, "ClientSession", FakeSession)
     width, height = size
-    result = await images.markdown_image(
-        f"https://thirdqq.qlogo.cn/avatar(test).png?w={width}&h={height}"
+    query = f"key=test%2Bsignature&w={width}&h={height}"
+    source_url = f"https://thirdqq.qlogo.cn/avatar(test).png?{query}"
+    escaped_url = f"https://thirdqq.qlogo.cn/avatar%28test%29.png?{query}"
+    assert (
+        await images.markdown_image(source_url)
+        == f"![群友头像 {rendered}]({escaped_url})"
     )
-    assert rendered in result
-    assert "avatar%28test%29.png" in result
