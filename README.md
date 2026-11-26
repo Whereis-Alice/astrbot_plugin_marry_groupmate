@@ -1,180 +1,95 @@
-# 🌸 AstrBot 活跃成员抽老婆插件
+<p align="center"><img src="./logo.png" width="112" height="112" alt="娶群友图标"></p>
 
-![Latest Version](https://img.shields.io/badge/LATEST%20VERSION-v3.6.5-7ec8e3?style=for-the-badge&labelColor=4a4a4a)
-![AstrBot Plugin](https://img.shields.io/badge/ASTRBOT-PLUGIN-ff69b4?style=for-the-badge&labelColor=4a4a4a)
-![License](https://img.shields.io/badge/LICENSE-AGPL--3.0-78c800?style=for-the-badge&labelColor=4a4a4a)
+# 娶群友
 
-基于 [AstrBot](https://github.com/Soulter/AstrBot) 的群聊互动插件。通过记录群内活跃成员（可配置天数内发言的用户），实现随机抽取“今日老婆”的功能，并生成群内成员间的羁绊关系图谱。
+娶群友是一个 AstrBot 群聊小游戏。发送 `/抽老婆` 或 `/娶群友`，从近期发过言的群友中随机抽取一位。也可以自己挑选候选人、向群友求婚，或用关系图看看今天群里结了哪些缘。
 
-## ✨ 功能亮点
+## 安装
 
-### 新功能
-新增了查看群友好感度功能，把群友当gal的女主来攻略？（笑）
+1. 确认 AstrBot 版本为 **4.16 或更新的 4.x**。
+2. 打开 AstrBot 管理面板，在插件市场选择通过仓库链接安装，粘贴以下地址。
 
-不过目前还是实验性功能，可能会有不稳定的情况出现，欢迎反馈来帮助改善计分机制和修复bug哦~      <img src="./pic/表情包.png" alt="小表情" width="80">
+   ```text
+   https://github.com/Whereis-Alice/astrbot_plugin_marry_groupmate
+   ```
 
----
+3. 启用插件，让几位群友发言，再在群里发送 `/娶群友`。示例使用 `/` 作为唤醒前缀，请按自己的 AstrBot 设置替换，或通过 @机器人 唤醒。
+4. 使用 QQ 官方机器人时，先按下方说明在 QQ 群内开启消息接收范围。
 
-**活跃筛选**：仅从指定天数内有发言记录的“活人”中抽取。
-**快捷触发**：支持中文指令及 **英文缩写**（如 `jrlp`、`wdlp`），操作更高效。
-**头像展示**：抽取结果附带 640px 高清 QQ 头像，视觉体验更佳。
-**可视化关系**：基于 `Vis.js` 渲染生成高清关系网络图，直观展示群内“错综复杂”的老婆关系。
-**智能名称识别**：图谱自动关联用户昵称，优先显示群名片而非数字 ID。
-**QQ 官方机器人兼容**：从官方消息事件缓存昵称和头像，缺失头像时使用 AppID 与 member_openid 获取。
-**灵活管控**：支持 **群聊黑白名单**、每人每日抽取次数限制及强娶冷却时间设置。
+支持 **QQ OneBot、QQ 官方 Bot（WebSocket 和 Webhook）、Discord 和 Telegram**。候选从插件启用后收到的群消息积累，默认保留最近 30 天内发过言的群友。有可用的成员资料时会过滤已退群成员。
 
-### 关于qq官方bot
+## 群聊指令
 
-官方bot加群以后，一定要在群里的bot的设置里面，机器人可获取的群聊聊天范围里面，选择获取群内全部消息，不然插件无法运作，此选项只可由群主开启。
+| 指令 | 用途 |
+| --- | --- |
+| `/抽老婆`、`/娶群友` | 随机抽取活跃群友，默认每人每天一次。 |
+| `/挑选群友` | 显示一批随机候选，在时间内按提示选择、换一批或放弃。 |
+| `/群友抽取记录` | 查看今天的抽取、配对及剩余次数。 |
+| `/向群友求婚 @群友` | 发出邀请，等待被邀请人回复。 |
+| `/强娶群友 @群友` | 按配置更换今日关系，受强娶冷却和排除名单限制。 |
+| `/解除群友关系` | 解除自己的普通关系。多条关系时按提示选择，成功后进入 72 小时冷却。 |
+| `/群友关系图` | 生成本群今日关系图。 |
+| `/群友求婚榜`、`/群友被强娶榜` | 查看本群的近 30 天排行。 |
+| `/娶群友帮助` | 查看群内玩法说明。 |
 
-同时也打开允许主动发消息
+指定群友时，请用客户端的成员菜单插入真实的 @。对话式操作可以点 QQ 官方机器人的按钮，也可以按提示直接发送以下格式。
 
-### Discord 配置
+| 场景 | 回复示例 |
+| --- | --- |
+| 挑选候选 | `群友挑选回复 1`、`群友挑选回复 重新挑选`、`群友挑选回复 放弃` |
+| 回应求婚 | `群友求婚回复 同意`、`群友求婚回复 拒绝` |
+| 求婚被拒后的确认 | `群友强娶回复 是`、`群友强娶回复 取消` |
+| 选择要解除的关系 | `解除关系回复 1`，或按提示发送取消和全部解除选项 |
 
-建议在 Discord Developer Portal 为机器人开启 `Server Members Intent` 和
-`Message Content Intent`，以便读取成员昵称、头像和消息内容。成员列表不可用时，
-插件会自动回退到近期发过言的活跃用户池。
+管理员可用 `/群友重置记录` 清理本群今日记录、挑选冷却和分手冷却，也可用 `/群友重置强娶` 或 `/群友重置求婚` 单独清理对应冷却。
 
-可使用 `wife`、`dailywife`、`mywife`、`pickwife`、`propose`、`breakup`、
-`forcemarry`、`relations`、`wifeleaderboard` 和 `wifehelp` 等英文别名。
+## 趣味事件
 
-### Telegram 配置
+在插件配置中开启 **抽取趣味事件** 后，每次使用 `/抽老婆` 或 `/娶群友` 都有机会触发下列结果。此选项默认关闭。
 
-在 AstrBot 中连接 Telegram 机器人后，将机器人加入群聊。建议设为群管理员：这样既能收到普通群消息、记录活跃用户，也能可靠查询成员是否仍在群内。若不设为管理员，需要在 BotFather 中关闭隐私模式；成员查询不可用时会使用已知活跃用户，无法保证及时排除退群用户。
+| 结果 | 默认概率 | 效果 |
+| --- | ---: | --- |
+| 打光棍 | 25% | 用掉一次抽取机会，这次没有配对。 |
+| 包二奶 | 25% | 同一次抽取结缘两位不同的群友。 |
+| 开后宫 | 5% | 同一次抽取结缘至少三位不同的群友，默认最多四位。 |
+| 普通抽取 | 45% | 结缘一位群友。 |
 
-## 🎮 使用指令
+每种事件的概率均可设置。三项概率加起来超过 100% 时，按原比例分配；多人的事件遇到候选不足时回退到普通抽取。
 
-> [!IMPORTANT]
-> **关于 @ 的使用：**
-> 使用强娶并 @ 对方时，请**长按对方头像 @**，或输入@后点击输入框上方弹出的成员列表。不要手动输入 `@名字` 或复制黏贴文字，否则插件无法获取对方的 QQ 号导致功能失效。
+## QQ 官方机器人
 
+1. 请群主打开该机器人的群内设置，将 **机器人可获取的群聊聊天范围** 设为 **获取群内全部消息**。机器人会用收到的群消息积累候选人。
+2. 若要发送求婚超时提示等主动消息，请在群设置中允许机器人主动发消息。
+3. 插件配置中的 **QQ 官方机器人 Markdown** 和 **QQ Markdown 快捷按钮** 默认开启。按钮可独立关闭，保留 Markdown 图文与手动操作。
 
-| 指令 | 英文缩写 | 其他别称 | 权限 | 说明 |
-| --- | --- | --- | --- | --- |
-| `/今日老婆` | `jrlp` | `抽老婆` | 用户 | 随机抽取一名今日老婆 |
-| `/我的老婆` | `wdlp` | `抽取历史` | 用户 | 查看今天抽到的记录及剩余次数 |
-| `/强娶 @用户` | `qiangqu` | - | 用户 | 消耗次数强制与指定用户建立羁绊 |
-| `/关系图` | `gxt` | `羁绊图谱` | 用户 | 生成并发送本群今日的老婆关系网络图 |
-| `/rbq排行` | `rbqph` | - | 用户 | 展示近30天被强娶的次数排行（前10名） |
-| `/花心大萝卜榜` | `海王榜`、`花心榜`、`hxb`、`hxdlbb`、`hwb` | - | 用户 | 近30天向不同对象求婚的人数及成功人数（前10名，图片榜单，失败回退文字） |
-| `/重置记录` | `czjl` | - | 管理员 | 清空所有今日抽取记录 |
-| `/重置强娶时间` | `czqqsj` | - | 管理员 | 清空当前群所有人的强娶冷却 CD |
-| `/重置求婚时间` | `czqhsj` | - | 管理员 | 清空当前群所有人的求婚冷却 CD |
-| `/抽老婆帮助` | `clpbz` | `老婆插件帮助` | 用户 | 查看详细指令说明 |
-| `/求婚 @用户` | `qh` | - | 用户 | 向群友发起求婚 |
-| `/查看好感度 @用户` | `affinity` | - | 用户 | 实验性功能：查看对方对自己的好感度，默认关闭 |
-| `/调整好感度 @用户 70` | `setaffinity` | `+5` / `-5` 相对调整 | 用户 | 只修改自己对对方的好感度 |
-| `/分手`、`/离婚` | `fs` | - | 用户 | 每日上限大于 1 时显示离婚列表，可选择一人或全部离婚；强娶关系不可解除，成功后冷却 72 小时 |
-| `/挑选老婆` | `txlp` | - | 用户 | 从随机抽取的候选群友中选择一位成为今日老婆 |
+| 配置键 | 默认 | 行为 |
+| --- | --- | --- |
+| `qq_official_markdown` | 开启 | 在支持的 QQ 群场景中使用原生 Markdown。 |
+| `qq_official_buttons` | 开启 | 在 Markdown 消息中显示可用的快捷操作。 |
 
-### 💡 关键词模式
-若在配置中开启 `keyword_trigger_enabled`，则上述指令（包括英文缩写）均可**直接发送**（不带 `/` 前缀）触发。
-* 示例：直接在群里发 `jrlp` 即可抽老婆。
+抽取、挑选确认等卡片中的 Markdown 头像按原比例嵌入聊天，**最大显示宽度 480 px，最大显示高度 420 px**，小图保持原尺寸。快捷按钮仅对当前操作人开放，点击后发送对应的文字操作。若 QQ 拒绝带按钮的消息，插件会尝试保留 Markdown，再回退为普通消息。实际展示受 QQ 开放平台为机器人的账号和场景授予的能力影响。
 
-### 群友好感度（实验性功能）
-可以查看群友对你的好感度哦，想要提高分数可以直接调整好感度，或者引用回复，@对方都可以积累好感度
+## 常用配置
 
-详细安装、计分规则、数据库表和日志说明见 [好感度功能说明](docs/affinity.md)。
+| 设置 | 行为 |
+| --- | --- |
+| 活跃筛选天数 | 默认 30 天。新安装后需要先收到群消息。 |
+| 每日抽取上限 | 默认 1 次。抽取记录按 AstrBot 所在环境的日期换日。 |
+| 群聊白名单、黑名单 | 控制玩法开放的群，黑名单优先。 |
+| 排除用户列表、强娶排除用户列表 | 按平台的成员 ID 排除候选或强娶对象。QQ 官方机器人使用该 Bot 所见的成员 OpenID。 |
+| 关键词触发 | 默认关闭。开启后可以直接发关键词，推荐使用精确匹配。 |
+| 群友好感度 | 实验性功能，默认关闭。开启后可用 `/群友好感度 @群友` 和 `/群友调整好感度 @群友 70`。 |
 
-## 🖼️ 功能演示
-![群内关系图](pic/关系图.jpg)
-![强娶演示图](pic/演示图2.png)
-![被强娶排行演示图](pic/群rbq排行图.jpg)
+- Discord 建议在 Developer Portal 开启 **Server Members Intent** 和 **Message Content Intent**，用于成员资料查询和群消息接收。
+- Telegram 建议给机器人管理员权限，或在 BotFather 关闭隐私模式以接收普通群消息。
+- 关系图和图文排行使用 AstrBot 的图片渲染能力。运行环境需要能使用 AstrBot 配置的渲染服务。
+- 支持原生插件页面的 AstrBot 可从侧栏打开 **娶群友**，查看关系图、好感度和插件运行数据。详见 [控制台说明](docs/console.md)。
+- 好感度的群聊范围、数据留存及可选本地模型见 [好感度说明](docs/affinity.md)。
 
-## 🛠️ 环境要求
+## 与上游同时使用
 
-本插件的关系图功能依赖于 AstrBot 的浏览器渲染引擎（环境一般astrbot自带，不用管）：
+娶群友使用独立的插件 ID、配置和存储目录 `data/plugin_data/astrbot_plugin_marry_groupmate/`。旧命令 `/今日老婆`、`/jrlp` 由上游插件处理。上游同时注册了 `/抽老婆`，两个插件都启用时，请使用 `/娶群友` 调用本插件。
 
-1. **Playwright**：请确保你的 AstrBot 环境已安装 `Playwright` 浏览器驱动（AstrBot 通常自带）。
-2. **模板文件**：插件目录下需包含 `template/graph_template.html` 和 `template/rbq_ranking.html`。
+## 来源与许可证
 
-## ⚙️ 配置项说明
-
-在 AstrBot 管理面板或 _conf_schema.json 中可配置以下内容：
-
-| 配置键 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `language` | string | `zh-CN` | 聊天回复语言，可选简体中文、English、日本語 |
-| `daily_limit` | int | 1 | 每人每天可抽取的次数上限 |
-| `force_marry_cd` | int | 3 | 强娶后的冷却天数 |
-| `propose_cooldown_minutes` | int | 60 | 求婚成功后双方的冷却分钟数，设为 0 可关闭 |
-| `max_records` | int | 500 | 活跃群友的最大记录数 |
-| `active_user_days` | int | 30 | 活跃筛选天数，可设置 1 到 30 天 |
-| `debug_enabled` | bool | false | 开启后输出抽取流程、候选池、群成员过滤、活跃池清理等调试日志 |
-| `excluded_users` | list | [] | 永远不会被抽中的 QQ 号列表（用于“今日老婆”） |
-| `force_marry_excluded_users` | list | [] | 强娶排除用户列表（在此列表中的 QQ 号不能被强娶） |
-| `iterations` | int | 140 | 关系图生成迭代次数，头像跑出图片时可适当调小 |
-| `keyword_trigger_enabled` | bool | false | 是否启用关键词触发（无需 `/` 前缀） |
-| `keyword_trigger_mode` | string | exact | 匹配模式：`exact`(精确) / `starts_with`(开头) / `contains`(包含) |
-| `auto_set_other_half` | bool | false | 自动设置对方老婆（对方当天无记录时生效） |
-| `auto_withdraw_enabled` | bool | false | 定时自动撤回消息（仅 OneBot 协议可用） |
-| `auto_withdraw_delay_seconds` | int | 5 | 自动撤回的延迟秒数 |
-| `allow_marry_bot` | bool | false | 是否允许机器人进入老婆池并被抽取或强娶 |
-| `at_waifu` | bool | false | 抽到老婆或强娶成功时是否额外 @ 对方 |
-| `pick_candidate_count` | int | 3 | 挑选老婆的候选人数，最大 6，超过自动收敛 |
-| `pick_retry_limit` | int | 2 | 每日最多展示的候选批数；初始挑选也计入，0 表示不限 |
-| `whitelist_groups` | list | [] | 白名单群号列表 |
-| `blacklist_groups` | list | [] | 黑名单群号列表 |
-
-*也可以去看看[Nayukiiii](https://github.com/Nayukiiii)对这个插件的功能做出的一些有意思的改进[astrbot-plugin-wifepicker-edit](https://github.com/Nayukiiii/astrbot-plugin-wifepicker-edit)
-
-觉得插件好用的话，就给个 star 吧 ❤️~
-
-## 🗂️ 文件架构
-
-```text
-astrbot-plugin-wifepicker/
-├── main.py                    # 插件入口、AstrBot 指令注册、关键词触发调度
-├── keyword_trigger.py         # 无前缀关键词触发匹配器
-├── waifu_relations.py         # 自动设置对方老婆等关系记录辅助逻辑
-├── _conf_schema.json          # AstrBot 管理面板配置项
-├── metadata.yaml              # 插件元信息
-├── README.md                  # 使用说明与文件架构
-├── CHANGELOG.md               # 更新记录
-├── LICENSE                    # AGPL-3.0 许可证
-├── logo.png                   # 插件图标
-├── vis-network.min.js         # 关系图使用的 Vis.js 库
-├── src/
-│   ├── __init__.py
-│   ├── constants.py           # 默认关键词路由表
-│   ├── core.py                # 抽取、记录、冷却、清理等核心逻辑
-│   ├── affinity/              # 实验性好感度：互动收集、隔离模型管理与CPU工作进程
-│   ├── i18n.py                # 多语言文案与时长格式化
-│   ├── utils.py               # @ 目标解析、成员名解析、JSON 读写等工具函数
-│   ├── platforms/             # 平台兼容层
-│   │   ├── __init__.py
-│   │   ├── user_profiles.py   # 资料缓存、昵称与头像解析、跨平台回复格式
-│   │   ├── telegram_support.py # Telegram 用户识别、成员与头像适配
-│   │   ├── qq_official_groups.py # QQ 官机群名获取、缓存与接口兼容
-│   │   └── onebot_api.py      # OneBot API 响应解析
-│   ├── db/                   # 新功能使用的 SQLite 存储层
-│   │   ├── __init__.py
-│   │   ├── proposals.py      # 求婚明细、去重排行与 60 天滚动清理
-│   │   └── affinity.py       # 好感度消息、互动、游戏事件与手动修正，60天清理
-│   ├── debug.py               # 调试日志入口
-│   ├── debug_utils.py         # 关系图调试数据生成工具
-│   └── command/
-│       ├── __init__.py
-│       ├── breakup.py         # /分手 与 72 小时冷却
-│       ├── forced_marriage.py # /强娶 与冷却、关系记录
-│       ├── help.py            # /抽老婆帮助
-│       ├── my_wife.py         # /我的老婆
-│       ├── pick_wife.py       # /挑选老婆 与 重新挑选/放弃交互流程
-│       ├── propose.py         # /求婚 与同意/拒绝交互流程
-│       ├── proposal_rank.py   # /花心大萝卜榜、随机评价与图片失败回退文字
-│       ├── rbqrank.py         # /rbq排行
-│       ├── relationdiagram.py # /关系图
-│       ├── reset_propose_cd.py # /重置求婚时间
-│       └── qq_official/       # QQ 官机交互展示，业务规则由公共命令处理
-│           ├── __init__.py
-│           ├── message.py     # 共用 Markdown 发送、群事件识别与指令按钮
-│           ├── pick_wife_official.py # 挑选候选菜单与确认消息
-│           └── propose_official.py   # 求婚邀请与同意/拒绝按钮
-├── template/
-│   ├── graph_template.html    # 关系图渲染模板
-│   ├── proposal_ranking.html  # 花心大萝卜榜渲染模板
-│   └── rbq_ranking.html       # rbq 排行渲染模板
-└── pic/                       # README 演示图片
-```
-
-运行数据会写入 AstrBot 插件数据目录下的 `astrbot_plugin_wifepicker/`。升级时会将旧 `random_wife/` 目录中尚未存在于新目录的文件复制过去，旧目录保留以便回滚；如新旧目录有同名文件，以新目录为准。常见文件包括 `wife_records.json`、`active_users.json`、`marriage_action_today.json`、`breakup_cooldowns.json` 和 `rbq_stats.json` 等。
+本项目基于何夕和贡献者维护的上游插件，沿用其 **AGPL-3.0** 许可证。趣味事件来自社区提案。 [上游项目](https://github.com/Heximiao/astrbot-plugin-wifepicker) · [Issue #30](https://github.com/Heximiao/astrbot-plugin-wifepicker/issues/30) · [LICENSE](LICENSE)

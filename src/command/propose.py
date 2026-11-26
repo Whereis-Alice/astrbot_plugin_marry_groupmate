@@ -8,13 +8,16 @@ from astrbot.api.event import AstrMessageEvent
 
 from ..core import (
     get_force_marry_cooldown_status,
-    get_group_records,
+    get_group_record_data,
     get_propose_cooldown_status,
     set_propose_cooldown,
     upsert_user_wife_record,
 )
 from .forced_marriage import cmd_force_marry
-from .qq_official.propose_official import send_proposal, send_force_confirmation
+from .qq_official.message import plain_result, reply_action
+from .qq_official.propose_official import (
+    FORCE_REPLY, PROPOSE_REPLY, send_force_confirmation, send_proposal,
+)
 from ..utils import extract_target_id_from_message, is_allowed_group, resolve_member_name, save_json
 from ..platforms.user_profiles import get_display_name, get_platform_members, mention_user, platform_result
 from ..i18n import format_duration, tr
@@ -41,7 +44,7 @@ async def _record_proposal(plugin, event, req, target_id):
             req["proposer_name"], req["target_name"], now=req["created_at"],
         )
     except Exception as exc:
-        logger.error(f"[wifepicker] 保存求婚统计失败: {exc}")
+        logger.error(f"[marry_groupmate] 保存求婚统计失败: {exc}")
 
 
 async def _resolve_proposal(plugin, req, status):
@@ -55,7 +58,7 @@ async def _resolve_proposal(plugin, req, status):
     try:
         await store.resolve(request_id, status)
     except Exception as exc:
-        logger.error(f"[wifepicker] 更新求婚统计失败: id={request_id}, error={exc}")
+        logger.error(f"[marry_groupmate] 更新求婚统计失败: id={request_id}, error={exc}")
 
 
 def _cleanup_expired_requests(group_id: str) -> None:
@@ -281,7 +284,7 @@ async def cmd_propose(plugin_instance, event: AstrMessageEvent):
         target_name=target_name,
     )
     if not await send_proposal(plugin_instance, event, target_id, text):
-        yield event.plain_result(text)
+        yield plain_result(event, text)
 
 async def _notify_propose_timeout(plugin_instance, event, group_id, target_id, req):
     await asyncio.sleep(PROPOSE_RESPONSE_SECONDS)
@@ -322,11 +325,15 @@ async def handle_propose_response(plugin_instance, event: AstrMessageEvent):
             await _resolve_proposal(plugin_instance, req, "cancelled")
         return
     user_id = str(event.get_sender_id())
-    msg = event.message_str.strip()
+    force_reply = reply_action(event.message_str, FORCE_REPLY)
+    proposal_reply = reply_action(event.message_str, PROPOSE_REPLY)
+    if not (force_reply or proposal_reply):
+        return
 
     _cleanup_expired_force_confirmations(group_id)
     force_req = force_confirm_requests.get(group_id, {}).get(user_id)
-    if isinstance(force_req, dict):
+    if force_reply and isinstance(force_req, dict):
+        msg = force_reply
         debug_log(plugin_instance, "propose", f"force_confirmation_reply group={group_id} proposer={user_id} target={force_req.get('target_id')} reply={msg!r}")
         if _is_request_expired(force_req):
             _delete_force_confirmation(group_id, user_id)
@@ -347,7 +354,8 @@ async def handle_propose_response(plugin_instance, event: AstrMessageEvent):
             return
 
     _cleanup_expired_requests(group_id)
-    if group_id in propose_requests and user_id in propose_requests[group_id]:
+    if proposal_reply and group_id in propose_requests and user_id in propose_requests[group_id]:
+        msg = proposal_reply
         req = propose_requests[group_id][user_id]
         debug_log(plugin_instance, "propose", f"response group={group_id} proposer={req['proposer_id']} target={user_id} reply={msg!r} expire={req.get('expire')}")
 
@@ -390,10 +398,11 @@ async def handle_propose_response(plugin_instance, event: AstrMessageEvent):
                 return
 
             timestamp = datetime.now().isoformat()
-            group_records = get_group_records(plugin_instance, group_id)
+            group_data = get_group_record_data(plugin_instance, group_id)
+            group_records = group_data["records"]
             daily_limit = plugin_instance.config.get("daily_limit", 1)
             upsert_user_wife_record(
-                group_records,
+                group_data,
                 user_id=proposer_id,
                 wife_id=user_id,
                 wife_name=target_name,
@@ -401,7 +410,7 @@ async def handle_propose_response(plugin_instance, event: AstrMessageEvent):
                 daily_limit=daily_limit,
             )
             upsert_user_wife_record(
-                group_records,
+                group_data,
                 user_id=user_id,
                 wife_id=proposer_id,
                 wife_name=proposer_name,

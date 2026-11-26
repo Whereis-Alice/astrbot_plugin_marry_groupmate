@@ -1,48 +1,24 @@
-# src/constants.py
-from ..keyword_trigger import KeywordRoute, PermissionLevel
+from ..keyword_trigger import KeywordRoute
 
-_DEFAULT_KEYWORD_ROUTES: tuple[KeywordRoute, ...] = (
-    KeywordRoute(keyword="查看好感度", action="show_affinity"),
-    KeywordRoute(keyword="查询好感度", action="show_affinity"),
-    KeywordRoute(keyword="affinity", action="show_affinity"),
-    KeywordRoute(keyword="调整好感度", action="adjust_affinity"),
-    KeywordRoute(keyword="setaffinity", action="adjust_affinity"),
-    KeywordRoute(keyword="今日老婆", action="draw_wife"),
-    KeywordRoute(keyword="jrlp", action="draw_wife"),
+_DEFAULT_KEYWORD_ROUTES = (
     KeywordRoute(keyword="抽老婆", action="draw_wife"),
-    
-    KeywordRoute(keyword="我的老婆", action="show_history"),
-    KeywordRoute(keyword="wdlp", action="show_history"),
-    KeywordRoute(keyword="抽取历史", action="show_history"),
-
-    KeywordRoute(keyword="分手", action="breakup"),
-    KeywordRoute(keyword="离婚", action="breakup"),
-    KeywordRoute(keyword="fs", action="breakup"),
-    
-    KeywordRoute(keyword="强娶", action="force_marry"),
-    KeywordRoute(keyword="qiangqu", action="force_marry"),
-    
-    KeywordRoute(keyword="关系图", action="show_graph"),
-    KeywordRoute(keyword="羁绊图谱", action="show_graph"),
-    KeywordRoute(keyword="gxt", action="show_graph"),
-    
-    KeywordRoute(keyword="rbq排行", action="rbq_ranking"),
-    KeywordRoute(keyword="rbqph", action="rbq_ranking"),
-    KeywordRoute(keyword="花心大萝卜榜", action="proposal_ranking"),
-    KeywordRoute(keyword="海王榜", action="proposal_ranking"),
-    KeywordRoute(keyword="花心榜", action="proposal_ranking"),
-    KeywordRoute(keyword="hxb", action="proposal_ranking"),
-    KeywordRoute(keyword="hxdlbb", action="proposal_ranking"),
-    KeywordRoute(keyword="hwb", action="proposal_ranking"),
-    
-    KeywordRoute(keyword="抽老婆帮助", action="show_help"),
-    KeywordRoute(keyword="老婆插件帮助", action="show_help"),
-    KeywordRoute(keyword="clpbz", action="show_help"),
-
-    KeywordRoute(keyword="求婚", action="propose_command"),
-    KeywordRoute(keyword="qh", action="propose_command"),
-
-    KeywordRoute(keyword="挑选老婆", action="pick_wife"),
-    KeywordRoute(keyword="txlp", action="pick_wife"),
-
+    KeywordRoute(keyword="群友抽取记录", action="show_history"),
+    KeywordRoute(keyword="解除群友关系", action="breakup"),
+    KeywordRoute(keyword="强娶群友", action="force_marry"),
+    KeywordRoute(keyword="群友关系图", action="show_graph"),
+    KeywordRoute(keyword="群友被强娶榜", action="rbq_ranking"),
+    KeywordRoute(keyword="群友求婚榜", action="proposal_ranking"),
+    KeywordRoute(keyword="娶群友帮助", action="show_help"),
+    KeywordRoute(keyword="向群友求婚", action="propose_command"),
+    KeywordRoute(keyword="挑选群友", action="pick_wife"),
+    KeywordRoute(keyword="群友好感度", action="show_affinity"),
+    KeywordRoute(keyword="群友调整好感度", action="adjust_affinity"),
+    KeywordRoute(keyword="娶群友", action="draw_wife"),
 )
+
+OFFICIAL_MENTION_ROUTES = {
+    "强娶群友": "force_marry",
+    "向群友求婚": "propose_command",
+    "群友好感度": "show_affinity",
+    "群友调整好感度": "adjust_affinity",
+}

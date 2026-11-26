@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import re
 import time
 from typing import Any
 from urllib.parse import quote
@@ -413,51 +412,14 @@ def mention_user(plugin, event, user_id: str):
     return Comp.At(qq=user_id)
 
 
-def qq_official_draw_result(
-    event, user_id: str, text: str, avatar_url: str | None,
-    *, suffix: str = "", wife_id: str | None = None,
-):
-    """Arrange draw content; the shared formatter handles platform details."""
-    import astrbot.api.message_components as Comp
-
-    chain = [Comp.At(qq=user_id), Comp.Plain(text)]
-    if wife_id:
-        chain.extend([Comp.At(qq=wife_id), Comp.Plain(" ")])
-    if avatar_url:
-        chain.append(avatar_image(avatar_url))
-    if suffix:
-        chain.append(Comp.Plain(suffix))
-    return platform_result(event, chain)
-
-
 def platform_result(event, chain):
-    """Build replies with explicit Markdown for QQ Official mention chains."""
-    import astrbot.api.message_components as Comp
-
-    if not is_qq_official_event(event):
-        return event.chain_result(platform_chain(event, chain))
-
-    formatted = []
-    for component in chain:
-        if isinstance(component, Comp.Plain):
-            text = re.sub(r"([\\`*_{}\[\]()#+\-.!|>~<])", r"\\\1", component.text)
-            formatted.append(Comp.Plain(text))
-        elif isinstance(component, Comp.Image):
-            source = component.url or component.file or ""
-            if source.startswith(("https://", "http://")):
-                # Image components switch the official adapter to rich media.
-                # Markdown URLs retain the requested text/image order.
-                url = quote(source, safe=":/?&=%+#@!$*,;~-._")
-                formatted.append(Comp.Plain(f"\n\n![avatar #224px #224px]({url})\n\n"))
-            else:
-                formatted.append(component)
-        else:
-            # Keep At as a component so its platform identifier is not escaped
-            # as ordinary text by the Markdown formatter.
-            formatted.append(component)
-    result = event.chain_result(formatted)
-    result.use_markdown_ = True
-    result.use_t2i_ = False
+    """Leave QQ official media uploads to the adapter's normal message pipeline."""
+    result = event.chain_result(platform_chain(event, chain))
+    if is_qq_official_event(event):
+        result.use_t2i(False)
+        use_markdown = getattr(result, "use_markdown", None)
+        if use_markdown is not None:
+            use_markdown(False)
     return result
 
 

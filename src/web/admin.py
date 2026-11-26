@@ -13,9 +13,11 @@ from contextlib import closing
 from pathlib import Path
 from threading import RLock
 
+from ..identity import DATABASE_NAME
+
 ROOT = Path(__file__).resolve().parents[2]
 JSON_FILES = {
-    "wife_records.json": "今日老婆记录", "active_users.json": "活跃群友候选池",
+    "wife_records.json": "今日群友记录", "active_users.json": "活跃群友候选池",
     "qq_official_profiles.json": "群友资料缓存", "forced_marriage.json": "强娶冷却",
     "breakup_cooldowns.json": "分手冷却", "marriage_action_today.json": "求婚冷却",
     "rbq_stats.json": "被强娶统计",
@@ -147,7 +149,7 @@ class ConsoleAdmin:
         return path
 
     def db(self):
-        path = self.file("wifepicker.db")
+        path = self.file(DATABASE_NAME)
         if not path.is_file():
             raise ValueError("数据库尚未创建")
         connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=5)
@@ -199,7 +201,7 @@ class ConsoleAdmin:
                     self.plugin.config.clear()
                     self.plugin.config.update(current)
                     raise
-            self.logger.info("[wifepicker.console] 插件控制台已保存配置")
+            self.logger.info("[marry_groupmate.console] 插件控制台已保存配置")
             return api.json_response({"saved": True, "revision": revision(dict(self.plugin.config)),
                                       "message": "配置已保存；多数选项立即生效，镜像地址等标有重载要求的项目需重载插件。"})
         except Exception as exc:
@@ -225,7 +227,7 @@ class ConsoleAdmin:
                         continue
                     checked += 1
                     parts = path.relative_to(root).parts
-                    key = "runtime" if parts[:2] == ("affinity_model", "runtime") else "model" if parts[0] == "affinity_model" else "database" if path.name in {"wifepicker.db", "wifepicker.db-wal", "wifepicker.db-shm"} else "json" if path.suffix == ".json" else "other"
+                    key = "runtime" if parts[:2] == ("affinity_model", "runtime") else "model" if parts[0] == "affinity_model" else "database" if path.name in {DATABASE_NAME, f"{DATABASE_NAME}-wal", f"{DATABASE_NAME}-shm"} else "json" if path.suffix == ".json" else "other"
                     try:
                         partitions[key]["bytes"] += path.stat().st_size
                         partitions[key]["files"] += 1
@@ -234,7 +236,7 @@ class ConsoleAdmin:
                     if checked >= 20000:
                         break
         tables = []
-        if self.file("wifepicker.db").is_file():
+        if self.file(DATABASE_NAME).is_file():
             with closing(self.db()) as connection:
                 for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"):
                     name = row[0]

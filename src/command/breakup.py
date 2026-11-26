@@ -7,11 +7,13 @@ from ..core import get_group_records
 from ..platforms.user_profiles import get_display_name
 from ..utils import is_allowed_group, save_json
 from ..i18n import format_duration, tr
+from .qq_official.message import reply_action
 
 
 BREAKUP_COOLDOWN_SECONDS = 72 * 60 * 60
 FORCE_RECORD_TIME_TOLERANCE_SECONDS = 10
 BREAKUP_RESPONSE_SECONDS = 60
+BREAKUP_REPLY = "解除关系回复"
 
 
 def _requests(plugin_instance):
@@ -98,8 +100,10 @@ async def cmd_breakup(plugin_instance, event: AstrMessageEvent, *, selection=Non
         yield event.plain_result(tr(plugin_instance, "breakup_no_wife"))
         return
 
-    if selection is None and plugin_instance.config.get("daily_limit", 1) > 1:
-        wife_ids = list(dict.fromkeys(str(r.get("wife_id")) for r in user_records))
+    wife_ids = list(dict.fromkeys(str(record["wife_id"]) for record in user_records))
+    if selection is None and (
+        len(wife_ids) > 1 or plugin_instance.config.get("daily_limit", 1) > 1
+    ):
         _requests(plugin_instance)[(group_id, user_id)] = {
             "expire_at": now + BREAKUP_RESPONSE_SECONDS,
             "records": [dict(r) for r in user_records],
@@ -181,20 +185,20 @@ async def cmd_breakup(plugin_instance, event: AstrMessageEvent, *, selection=Non
 
 
 async def handle_breakup_response(plugin_instance, event: AstrMessageEvent):
-    """仅接受发起人在原群聊的选择，优先于其他数字回复处理。"""
-    if event.is_private_chat() or getattr(event, "_wifepicker_breakup_handled", False):
+    """仅接受发起人在原群聊通过专用指令发送的选择。"""
+    if event.is_private_chat() or getattr(event, "_marry_groupmate_breakup_handled", False):
         return
     key = (str(event.get_group_id()), str(event.get_sender_id()))
     requests = _requests(plugin_instance)
     request = requests.get(key)
     if request is None:
         return
-    msg = event.message_str.strip()
+    msg = reply_action(event.message_str, BREAKUP_REPLY)
     cancel = msg in {"取消", "放弃", "cancel"}
     choose_all = msg in {"全部离婚", "全部分手", "all"}
     if not (cancel or choose_all or msg.isdecimal()):
         return
-    event._wifepicker_breakup_handled = True
+    event._marry_groupmate_breakup_handled = True
     event.stop_event()
     if not is_allowed_group(key[0], plugin_instance.config):
         requests.pop(key, None)

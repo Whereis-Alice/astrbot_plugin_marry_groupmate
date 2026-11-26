@@ -26,7 +26,7 @@ async def cmd_proposal_ranking(plugin, event: AstrMessageEvent):
             raise RuntimeError("Proposal database unavailable")
         rows = await store.ranking(proposal_scope(event))
     except Exception as exc:
-        logger.error(f"[wifepicker] 查询求婚榜单失败: {exc}")
+        logger.error(f"[marry_groupmate] 查询求婚榜单失败: {exc}")
         yield event.plain_result(tr(plugin, "proposal_ranking_error"))
         return
     if not rows:
@@ -63,7 +63,7 @@ async def cmd_proposal_ranking(plugin, event: AstrMessageEvent):
         try:
             avatars = await get_avatar_sources(plugin, event, [user["proposer_id"] for user in ranking])
         except Exception as exc:
-            logger.warning(f"[wifepicker] 榜单头像获取失败，使用昵称占位: {exc}")
+            logger.warning(f"[marry_groupmate] 榜单头像获取失败，使用昵称占位: {exc}")
             avatars = {}
         for user in ranking:
             user["avatar_url"] = avatars.get(user["proposer_id"])
@@ -94,5 +94,5 @@ async def cmd_proposal_ranking(plugin, event: AstrMessageEvent):
         yield event.image_result(url)
         return
     except Exception as exc:
-        logger.error(f"[wifepicker] 渲染求婚榜单失败，回退文字: {exc}")
+        logger.error(f"[marry_groupmate] 渲染求婚榜单失败，回退文字: {exc}")
     yield event.plain_result("\n".join(lines))

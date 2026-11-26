@@ -4,7 +4,7 @@ const bytes = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ?
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const valueAt = (obj, path) => path.reduce((value, key) => value?.[key], obj);
 const put = (obj, path, value) => {for (const key of path.slice(0, -1)) obj = obj[key] ??= {}; obj[path.at(-1)] = value;};
-const labels = {database: ['SQLite 数据库', '求婚事件、互动证据、好感度账本及昵称缓存。'], json: ['JSON 业务记录', '今日老婆、活跃用户、冷却、群友资料和历史统计。'], model: ['小模型缓存', '已下载的模型权重与分词文件，可复用程序缓存。'], runtime: ['独立运行环境', '小模型使用的Python环境与CPU推理依赖。'], other: ['其他插件文件', '插件数据目录中的其他文件。']};
+const labels = {database: ['SQLite 数据库', '求婚事件、互动证据、好感度账本及昵称缓存。'], json: ['JSON 业务记录', '今日群友、活跃用户、冷却、群友资料和历史统计。'], model: ['小模型缓存', '已下载的模型权重与分词文件，可复用程序缓存。'], runtime: ['独立运行环境', '小模型使用的Python环境与CPU推理依赖。'], other: ['其他插件文件', '插件数据目录中的其他文件。']};
 
 export function initAdmin(bridge, {run, notice, onSaved}) {
   let active = '', logCursor = 0, logRows = [], filterKey = '', configState, controls = [], storage;

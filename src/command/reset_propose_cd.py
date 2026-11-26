@@ -1,7 +1,7 @@
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 
-from ..utils import save_json
+from ..utils import is_allowed_group, save_json
 from ..i18n import tr
 
 
@@ -12,6 +12,8 @@ async def cmd_reset_propose_cd(plugin_instance, event: AstrMessageEvent):
         return
 
     group_id = str(event.get_group_id())
+    if not is_allowed_group(group_id, plugin_instance.config):
+        return
     group_records = plugin_instance.marriage_action_records.get(group_id)
 
     if not isinstance(group_records, dict) or not group_records:
@@ -35,7 +37,7 @@ async def cmd_reset_propose_cd(plugin_instance, event: AstrMessageEvent):
         plugin_instance.marriage_action_file,
         plugin_instance.marriage_action_records,
     )
-    logger.info(f"[Wife] reset propose cooldown for group {group_id}, count={reset_count}")
+    logger.info(f"[marry_groupmate] reset propose cooldown for group {group_id}, count={reset_count}")
     yield event.plain_result(
         tr(plugin_instance, "reset_propose_done", count=reset_count)
     )

@@ -21,7 +21,7 @@ def adjustment_value(event):
         # token before numeric mentions, so digits in usernames cannot leak.
         text = re.sub(r"(?<!\S)@[A-Za-z0-9_]+(?=\s|$)", " ", text)
     text = re.sub(r"<@!?[^>]+>|\[CQ:[^\]]+\]|@\d+", " ", text)
-    text = re.sub(r"^\s*[/!！]*\s*(?:调整好感度|setaffinity)\s*", "", text, flags=re.I)
+    text = re.sub(r"^\s*[/!！]*\s*(?:群友调整好感度)\s*", "", text, flags=re.I)
     match = re.fullmatch(r"\s*([+-]?\d{1,3}(?:\.\d)?)\s*", text)
     if not match:
         return None
@@ -48,7 +48,7 @@ async def affinity_names(plugin, event, target):
         members = await asyncio.wait_for(get_platform_members(plugin, event), timeout=3)
     except Exception as exc:
         if plugin.config.get("debug_enabled", False):
-            plugin.affinity.logger.info(f"[wifepicker.affinity.debug] nickname_lookup_failed reason={type(exc).__name__}; using_event_or_profile=true")
+            plugin.affinity.logger.info(f"[marry_groupmate.affinity.debug] nickname_lookup_failed reason={type(exc).__name__}; using_event_or_profile=true")
     names = {}
     for member in members:
         user_id = str(member.get("user_id", ""))
@@ -110,5 +110,5 @@ async def cmd_affinity(plugin, event, adjust=False):
                 text += "\n" + tr(plugin, "affinity_model_pending")
             yield event.plain_result(text)
     except Exception as exc:
-        service.logger.warning(f"[wifepicker] 好感度命令失败: {type(exc).__name__}")
+        service.logger.warning(f"[marry_groupmate] 好感度命令失败: {type(exc).__name__}")
         yield event.plain_result(tr(plugin, "affinity_error"))

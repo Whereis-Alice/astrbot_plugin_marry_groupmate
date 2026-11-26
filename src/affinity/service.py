@@ -6,6 +6,9 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+from ..constants import _DEFAULT_KEYWORD_ROUTES
+from ..identity import DATABASE_NAME
+
 from .model import LocalSentiment
 from ..db.affinity import AffinityStore
 from ..db.proposals import proposal_scope
@@ -44,13 +47,8 @@ def clean_id(user_id):
     return user_id if user_id.casefold() not in {"", "0", "all", "none", "null"} else ""
 
 
-COMMAND = re.compile(
-    r"^\s*[/!！]|^\s*(?:查看好感度|调整好感度|affinity|setaffinity|"
-    r"求婚|强娶|今日老婆|抽老婆|挑选老婆|我的老婆|分手|离婚|关系图|"
-    r"抽老婆帮助|老婆插件帮助|重置记录|重置强娶时间|重置求婚时间|"
-    r"花心大萝卜榜|海王榜|花心榜|rbq排行|qh|propose|qiangqu|forcemarry|"
-    r"jrlp|dailywife|wife|pickwife|mywife|breakup|relations|wifehelp)(?=\s|@|<|\[|$)", re.I,
-)
+_KEYWORDS = "|".join(re.escape(route.keyword) for route in _DEFAULT_KEYWORD_ROUTES)
+COMMAND = re.compile(rf"^\s*[/!！]|^\s*(?:{_KEYWORDS})(?=\s|@|<|\[|$)")
 
 
 def snapshot(plugin, event, debug=None):
@@ -188,7 +186,7 @@ class AffinityService:
     def __init__(self, plugin, logger):
         self.plugin = plugin
         self.logger = logger
-        self.path = Path(plugin.data_dir) / "wifepicker.db"
+        self.path = Path(plugin.data_dir) / DATABASE_NAME
         self.store = None
         self.init_lock = asyncio.Lock()
         self.queue = asyncio.Queue(maxsize=256)
@@ -198,14 +196,14 @@ class AffinityService:
         self.last_overflow = 0
         self.task = asyncio.create_task(self._run())
         self.model_task = asyncio.create_task(self._classify_loop())
-        self.logger.info(f"[wifepicker.affinity] 实验性功能 enabled={enabled(plugin)} "
+        self.logger.info(f"[marry_groupmate.affinity] 实验性功能 enabled={enabled(plugin)} "
                          f"small_model={bool(settings(plugin).get('use_small_model', False))} "
                          f"aggressive={bool(settings(plugin).get('aggressive', False))}")
 
     def debug(self, message):
         if self.plugin.config is not None and self.plugin.config.get("debug_enabled", False):
             # Match the plugin's existing debug_log: INFO is visible in AstrBot's console.
-            self.logger.info(f"[wifepicker.affinity.debug] {message}")
+            self.logger.info(f"[marry_groupmate.affinity.debug] {message}")
 
     async def database(self):
         async with self.init_lock:
@@ -215,21 +213,21 @@ class AffinityService:
             return self.store
 
     def observe(self, event):
-        if getattr(event, "_wifepicker_affinity_seen", False):
+        if getattr(event, "_marry_groupmate_affinity_seen", False):
             return
         try:
             item = snapshot(self.plugin, event, self.debug)
             if item:
-                event._wifepicker_affinity_seen = True
+                event._marry_groupmate_affinity_seen = True
                 self.queue.put_nowait(item)
                 self.debug(f"queued scope={item['scope']} message={item['message_id']} sender={item['sender']} "
                            f"targets={sorted(item['targets'])} replies={item['replies']} chars={len(item['body'])} queue={self.queue.qsize()}")
         except asyncio.QueueFull:
             if time.monotonic() - self.last_overflow > 60:
-                self.logger.warning("[wifepicker] 好感度消息队列已满，跳过部分消息")
+                self.logger.warning("[marry_groupmate] 好感度消息队列已满，跳过部分消息")
                 self.last_overflow = time.monotonic()
         except Exception as exc:
-            self.logger.warning(f"[wifepicker] 好感度消息识别失败: {type(exc).__name__}")
+            self.logger.warning(f"[marry_groupmate] 好感度消息识别失败: {type(exc).__name__}")
 
     async def _process(self, item):
         if not enabled(self.plugin):
@@ -299,7 +297,7 @@ class AffinityService:
                 else:
                     self.debug(f"sentiment_skipped interaction={interaction_id} scope={scope} reason=disabled_or_group_access_denied")
             except Exception as exc:
-                self.logger.warning(f"[wifepicker] 好感度情绪处理失败: {type(exc).__name__}")
+                self.logger.warning(f"[marry_groupmate] 好感度情绪处理失败: {type(exc).__name__}")
             finally:
                 self.model_queue.task_done()
 
@@ -318,7 +316,7 @@ class AffinityService:
                         deleted = await asyncio.to_thread(db.cleanup)
                         self.debug(f"retention_cleanup deleted={deleted}")
                         if any(deleted.values()):
-                            self.logger.info(f"[wifepicker.affinity] 已清理超过60天的数据: {deleted}")
+                            self.logger.info(f"[marry_groupmate.affinity] 已清理超过60天的数据: {deleted}")
                     self.last_cleanup = time.monotonic()
                 try:
                     item = await asyncio.wait_for(self.queue.get(), timeout=15)
@@ -329,7 +327,7 @@ class AffinityService:
                 finally:
                     self.queue.task_done()
             except Exception as exc:
-                self.logger.warning(f"[wifepicker] 好感度后台处理失败: {type(exc).__name__}")
+                self.logger.warning(f"[marry_groupmate] 好感度后台处理失败: {type(exc).__name__}")
                 await asyncio.sleep(1)
 
     async def game(self, event, kind, actor, target, event_id):
@@ -346,7 +344,7 @@ class AffinityService:
                                     bool(settings(self.plugin).get("aggressive", False)))
             self.debug(f"game scope={proposal_scope(event)} kind={kind} actor={actor} target={target} event={event_id}")
         except Exception as exc:
-            self.logger.warning(f"[wifepicker] 好感度游戏事件保存失败: {type(exc).__name__}")
+            self.logger.warning(f"[marry_groupmate] 好感度游戏事件保存失败: {type(exc).__name__}")
 
     async def query(self, event, source, target):
         if not enabled(self.plugin) or event.is_private_chat() or not allowed_group(self.plugin, event.get_group_id()):

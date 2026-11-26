@@ -76,10 +76,10 @@ async function loadGroup() {
     if ($('group-select').options[index]) $('group-select').options[index].textContent = `${result.name} · ${state.scope[0] || '今日记录'}`;
   }
   $('group-title').textContent = result.name || selectedGroup?.name || `群 ${state.scope[2]}`;
-  $('scope-label').textContent = affinityAllowed ? `${state.scope[0]} / Bot ${state.scope[1]} / 群 ${state.scope[2]}` : `群 ${state.scope[2]} · 今日老婆记录`;
+  $('scope-label').textContent = affinityAllowed ? `${state.scope[0]} / Bot ${state.scope[1]} / 群 ${state.scope[2]}` : `群 ${state.scope[2]} · 今日群友记录`;
   $('updated-at').textContent = `更新于 ${date(result.at)}`;
   renderMetrics(); renderMembers(); renderRelations(); renderSelectors(); renderActivity(); renderGraph(); renderMarriage();
-  notice(affinityAllowed ? '今日老婆关系与群内关系图同步更新；好感度按方向单独计算。' : '当前群展示今日老婆关系；暂无可查看的好感度记录，或受好感度独立名单限制。');
+  notice(affinityAllowed ? '今日群友关系与群内关系图同步更新；好感度按方向单独计算。' : '当前群展示今日群友关系；暂无可查看的好感度记录，或受好感度独立名单限制。');
   if (!state.source || !state.target) {
     const first = result.relations.find(row => row.target === state.person) || result.relations[0];
     if (first) { state.source = first.source; state.target = first.target; renderSelectors(); }
@@ -220,7 +220,7 @@ function drawLine(container, points, {fullScale = false, height = 230, color = '
   }
 }
 function renderActivity() {
-  if (!state.group.affinityAllowed) { $('activity-chart').replaceChildren(node('p', 'blank', '暂无可查看的好感度互动记录，可查看今日老婆关系。')); return; }
+  if (!state.group.affinityAllowed) { $('activity-chart').replaceChildren(node('p', 'blank', '暂无可查看的好感度互动记录，可查看今日群友关系。')); return; }
   const activity = new Map(state.group.activity.map(point => [Math.floor(point.at / 86400), (point.interactions || 0) + (point.games || 0)]));
   const lastDay = Math.floor(state.group.at / 86400), points = [];
   for (let day = lastDay - 59; day <= lastDay; day++) points.push({at: day * 86400, score: activity.get(day) || 0});
@@ -303,7 +303,7 @@ function setTab(tab) {
   document.querySelector('.layout').classList.toggle('overview', tab === 'overview');
   $('workspace').classList.toggle('hidden', administration || !state.scope);
   $('empty').classList.toggle('hidden', administration || Boolean(state.scope));
-  if (administration) notice({logs: '仅显示今日老婆插件的运行日志，可按级别和内容筛选。', config: '修改当前插件配置，完成编辑后点击保存。', data: '查看本插件存储占用、SQLite数据库表和JSON业务文件。'}[tab]);
+  if (administration) notice({logs: '仅显示娶群友的运行日志，可按级别和内容筛选。', config: '修改当前插件配置，完成编辑后点击保存。', data: '查看本插件存储占用、SQLite数据库表和JSON业务文件。'}[tab]);
   document.querySelectorAll('[data-tab]').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
   for (const name of ['overview', 'marriage', 'detail', 'graph']) $(`${name}-panel`).classList.toggle('hidden', tab !== name);
   for (const name of ['logs', 'config', 'data']) $(`${name}-panel`).classList.toggle('hidden', tab !== name);
@@ -343,7 +343,7 @@ document.querySelectorAll('[data-tab]').forEach(button => {
   icon.append(svgNode('path', {d: tabIcons[button.dataset.tab], fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round'})); button.prepend(icon);
 });
 admin = initAdmin(bridge, {run, notice, onSaved: () => run(loadMeta)});
-if (!bridge) notice('请从 AstrBot 管理面板 → 今日老婆插件 打开此页面。', true);
+if (!bridge) notice('请从 AstrBot 管理面板 → 娶群友 打开此页面。', true);
 else run(async () => { const context = await bridge.ready(); theme(context); bridge.onContext(theme); await loadNetworkEngine(bridge); await loadMeta(); });
 const timer = setInterval(() => { if ($('auto-refresh').checked && !document.hidden && !$('refresh').disabled && !['logs', 'config', 'data'].includes(state.tab)) run(loadMeta); }, 30000);
 let resizeFrame;

@@ -18,7 +18,7 @@
     "daily_limit": {
         "type": "int",
         "description": "每日抽取上限",
-        "hint": "每位用户每天可以抽取老婆的次数上限，最好设置为一次，后面很多功能都是基于上限为一开发的，多次可能会出现一些兼容性问题。",
+        "hint": "每位成员在每个群每天可抽取的次数。",
         "default": 1,
         "slider": {
             "min": 1,
@@ -63,13 +63,13 @@
     "excluded_users": {
         "type": "list",
         "description": "排除用户列表",
-        "hint": "在此列表中的QQ号将不会被抽中。",
+        "hint": "在此列表中的平台用户 ID将不会被抽中。",
         "default": []
     },
     "force_marry_excluded_users": {
         "type": "list",
         "description": "强娶排除用户列表",
-        "hint": "在此列表中的QQ号不会被“强娶”指令选中。",
+        "hint": "在此列表中的平台用户 ID不会被“强娶”指令选中。",
         "default": []
     },
     "whitelist_groups": {
@@ -98,7 +98,7 @@
     "keyword_trigger_enabled": {
         "type": "bool",
         "description": "关键词触发",
-        "hint": "开启后，直接发送“抽老婆/强娶/关系图/抽老婆帮助”等关键词即可触发对应指令，无需指令前缀（如 /）。默认关闭以避免误触。",
+        "hint": "开启后，可直接发送抽老婆、娶群友、群友关系图等关键词。带参数的用法见 README。",
         "default": false
     },
     "keyword_trigger_mode": {
@@ -149,8 +149,8 @@
     },
     "pick_candidate_count": {
         "type": "int",
-        "description": "挑选老婆候选人数",
-        "hint": "执行「挑选老婆」时随机抽取的候选群友数量。最大为 6，超过会自动收敛。",
+        "description": "挑选群友候选人数",
+        "hint": "执行「挑选群友」时随机抽取的候选群友数量。最大为 6，超过会自动收敛。",
         "default": 3,
         "slider": {
             "min": 1,
@@ -161,7 +161,7 @@
     "pick_retry_limit": {
         "type": "int",
         "description": "每日候选批次数上限",
-        "hint": "每次执行「挑选老婆」或「重新挑选」并展示候选都会消耗一批；放弃和超时不会退还。设为 0 表示不限批数。",
+        "hint": "每次执行「挑选群友」或「群友挑选回复 重新挑选」并展示候选都会消耗一批；放弃和超时不会退还。设为 0 表示不限批数。",
         "default": 2,
         "slider": {
             "min": 0,
@@ -227,7 +227,76 @@
     "debug_enabled": {
         "type": "bool",
         "description": "全局调试日志",
-        "hint": "开启后会输出触发插件指令时识别到的平台、抽取流程、候选池、群成员过滤、活跃池清理，以及挑选老婆和求婚的请求、回复、超时等调试日志。排查完成后建议关闭。",
+        "hint": "开启后会输出触发插件指令时识别到的平台、抽取流程、候选池、群成员过滤、活跃池清理，以及挑选群友和求婚的请求、回复、超时等调试日志。排查完成后建议关闭。",
         "default": false
+    },
+    "qq_official_markdown": {
+        "type": "bool",
+        "description": "QQ 官方机器人 Markdown",
+        "hint": "在支持的 QQ 官方群聊中使用 Markdown 图文。QQ 拒绝时回退到普通消息。",
+        "default": true
+    },
+    "qq_official_buttons": {
+        "type": "bool",
+        "description": "QQ Markdown 快捷按钮",
+        "hint": "控制 Markdown 卡片上的快捷操作。关闭后可继续使用 Markdown，并能手动输入相同操作。",
+        "default": true
+    },
+    "special_draw": {
+        "type": "object",
+        "description": "抽取趣味事件",
+        "hint": "开启后，在同一条抽取指令中按概率触发打光棍、包二奶或开后宫。",
+        "items": {
+            "enabled": {
+                "type": "bool",
+                "description": "开启趣味事件",
+                "hint": "按下列概率触发随机事件。",
+                "default": false
+            },
+            "single_chance": {
+                "type": "int",
+                "description": "打光棍概率（%）",
+                "hint": "消耗一次抽取次数，本次没有配对。",
+                "default": 25,
+                "slider": {
+                    "min": 0,
+                    "max": 100,
+                    "step": 1
+                }
+            },
+            "double_chance": {
+                "type": "int",
+                "description": "包二奶概率（%）",
+                "hint": "一次抽到两名不同的群友。",
+                "default": 25,
+                "slider": {
+                    "min": 0,
+                    "max": 100,
+                    "step": 1
+                }
+            },
+            "harem_chance": {
+                "type": "int",
+                "description": "开后宫概率（%）",
+                "hint": "一次抽到三名或更多不同的群友。",
+                "default": 5,
+                "slider": {
+                    "min": 0,
+                    "max": 100,
+                    "step": 1
+                }
+            },
+            "harem_max": {
+                "type": "int",
+                "description": "开后宫最多人数",
+                "hint": "范围为 3 到 8，实际受可用候选数量限制。",
+                "default": 4,
+                "slider": {
+                    "min": 3,
+                    "max": 8,
+                    "step": 1
+                }
+            }
+        }
     }
 }

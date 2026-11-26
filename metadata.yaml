@@ -1,9 +1,10 @@
-name: astrbot_plugin_wifepicker
-desc: "全新的抽取群友当老婆的插件，可以增进群友的感情（）。只抽一个月内取发言过的人，并且可生成老婆关系图，还可以强娶哦~"
-display_name: 今日老婆
-version: v3.6.5
-author: 何夕
-repo: https://github.com/Heximiao/astrbot-plugin-wifepicker
+name: astrbot_plugin_marry_groupmate
+display_name: 娶群友
+desc: 群聊互动插件。抽取活跃群友，支持挑选、求婚、关系图和 QQ 官方机器人。
+version: v1.0.0
+author: Whereis-Alice
+repo: https://github.com/Whereis-Alice/astrbot_plugin_marry_groupmate
+astrbot_version: ">=4.16,<5"
 support_platforms:
   - aiocqhttp
   - discord

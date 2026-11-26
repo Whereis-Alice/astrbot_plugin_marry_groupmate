@@ -68,7 +68,7 @@ class LocalSentiment:
     def ensure(self, config):
         if self.task is None and not self.ready and time.monotonic() >= self.retry_at:
             self.status = "准备中（自动下载模型和独立运行依赖）"
-            self.logger.info("[wifepicker.affinity.model] 小模型已启用，开始后台准备；期间基础计分照常工作")
+            self.logger.info("[marry_groupmate.affinity.model] 小模型已启用，开始后台准备；期间基础计分照常工作")
             self.task = asyncio.create_task(self._prepare(dict(config)))
 
     async def _command(self, *args):
@@ -92,7 +92,7 @@ class LocalSentiment:
 
         result = await asyncio.wait_for(consume(), timeout=600)
         if result:
-            self.logger.warning(f"[wifepicker.affinity.model] 运行依赖安装失败 exit={result}; {' | '.join(tail)[-2000:]}")
+            self.logger.warning(f"[marry_groupmate.affinity.model] 运行依赖安装失败 exit={result}; {' | '.join(tail)[-2000:]}")
             raise RuntimeError("独立运行环境安装失败")
         self.install_process = None
 
@@ -106,10 +106,10 @@ class LocalSentiment:
             self.root.mkdir(parents=True, exist_ok=True)
             self.debug(f"model_setup root={self.root} download_sources={sources} pip_mirror={index}")
             if not python.exists():
-                self.logger.info("[wifepicker.affinity.model] 正在创建独立 Python 运行环境")
+                self.logger.info("[marry_groupmate.affinity.model] 正在创建独立 Python 运行环境")
                 await self._command(sys.executable, "-m", "venv", str(env))
             if not marker.exists():
-                self.logger.info("[wifepicker.affinity.model] 正在通过 PyPI 镜像安装 CPU 推理依赖")
+                self.logger.info("[marry_groupmate.affinity.model] 正在通过 PyPI 镜像安装 CPU 推理依赖")
                 await self._command(python, "-m", "pip", "--isolated", "install", "--disable-pip-version-check",
                                     "--no-input", "--only-binary=:all:", "--retries", "1", "--timeout", "30",
                                     "--index-url", index, "onnxruntime>=1.20,<2", "tokenizers>=0.21,<1", "numpy>=1.26,<3")
@@ -130,19 +130,19 @@ class LocalSentiment:
                     if reply.get("ready"):
                         return
                     if reply.get("error"):
-                        self.logger.warning(f"[wifepicker.affinity.model] 模型准备失败: {reply['error']} {reply.get('detail', '')}")
+                        self.logger.warning(f"[marry_groupmate.affinity.model] 模型准备失败: {reply['error']} {reply.get('detail', '')}")
                         raise RuntimeError("模型下载或加载失败")
-                    self.logger.info(f"[wifepicker.affinity.model] {progress_message(reply)}")
+                    self.logger.info(f"[marry_groupmate.affinity.model] {progress_message(reply)}")
             await asyncio.wait_for(bootstrap(), timeout=1900)
             self.ready = True
             self.status = "本地 CPU 模型已就绪"
-            self.logger.info("[wifepicker] 好感度本地情感模型已就绪，推理不发送聊天到外部服务")
+            self.logger.info("[marry_groupmate] 好感度本地情感模型已就绪，推理不发送聊天到外部服务")
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             self.status = "模型未就绪，使用基础计分；请检查镜像、磁盘和 Python venv/pip 支持"
             self.retry_at = time.monotonic() + 3600
-            self.logger.warning(f"[wifepicker] 好感度模型准备失败 ({type(exc).__name__})，一小时后重试；基础计分继续工作")
+            self.logger.warning(f"[marry_groupmate] 好感度模型准备失败 ({type(exc).__name__})，一小时后重试；基础计分继续工作")
         finally:
             if not self.ready:
                 await self._stop_processes()
@@ -169,7 +169,7 @@ class LocalSentiment:
                 self.ready = False
                 self.status = "模型推理失败，使用基础计分"
                 self.retry_at = time.monotonic() + 3600
-                self.logger.warning(f"[wifepicker.affinity.model] 推理失败 ({type(exc).__name__})，已回退基础计分")
+                self.logger.warning(f"[marry_groupmate.affinity.model] 推理失败 ({type(exc).__name__})，已回退基础计分")
                 await self._stop_processes()
                 return None
 

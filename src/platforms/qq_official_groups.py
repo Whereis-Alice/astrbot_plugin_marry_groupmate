@@ -75,7 +75,7 @@ async def get_official_group_name(event, fallback, *, debug=None):
         name = _name(info, group_id) or _name(_value(info, "data"), group_id)
     except Exception as exc:
         log(f"group={group_id} source=api error={exc!r}")
-        logger.warning(f"[wifepicker] QQ官方群名获取失败，可能未开放群资料权限: {exc}")
+        logger.warning(f"[marry_groupmate] QQ官方群名获取失败，可能未开放群资料权限: {exc}")
     ttl = 3600 if name else 300
     name = name or (cached[1] if cached else "")
     _GROUP_NAMES[key] = (now + ttl, name)

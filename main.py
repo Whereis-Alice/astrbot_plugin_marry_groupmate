@@ -1,25 +1,18 @@
 import asyncio
 import os
-import random
-import shutil
 import time
-from datetime import datetime
 
-import astrbot.api.message_components as Comp
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.star import Context, Star
-from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
+from astrbot.api.star import Context, Star, StarTools
 
-from .src.platforms.user_profiles import mention_user, avatar_image, platform_result
-from .src.platforms.telegram_support import is_telegram_event, self_user_id
 from .keyword_trigger import KeywordRouter, MatchMode
-from .waifu_relations import maybe_add_other_half_record
 from .src.command.help import cmd_show_help
 from .src.command.breakup import cmd_breakup, handle_breakup_response
+from .src.command.draw import cmd_draw_wife
 from .src.command.forced_marriage import cmd_force_marry
 from .src.command.my_wife import cmd_show_history
-from .src.command.pick_wife import cmd_pick_wife, handle_pick_response, has_pending_pick
+from .src.command.pick_wife import cmd_pick_wife, handle_pick_response
 from .src.command.propose import cmd_propose, handle_propose_response
 from .src.command.relationdiagram import cmd_show_graph
 from .src.command.rbqrank import cmd_rbq_ranking
@@ -28,94 +21,27 @@ from .src.db import ProposalStore
 from .src.affinity import AffinityService
 from .src.command.affinity import cmd_affinity
 from .src.command.reset_propose_cd import cmd_reset_propose_cd
-from .src.platforms.user_profiles import (
-    get_avatar_source,
-    get_display_name,
-    get_platform_members,
-    remember_user_profile,
-    is_qq_official_event,
-    qq_official_draw_result,
-)
-
+from .src.platforms.user_profiles import remember_user_profile
 from .src.constants import _DEFAULT_KEYWORD_ROUTES
-from .src.utils import (
-    load_json, 
-    save_json, 
-    extract_target_id_from_message,
-    match_qq_official_target_command,
-    is_allowed_group,           # 新增
-    resolve_member_name,        # 新增
-)
-
-from .src.debug import debug_log, log_command_platform
-from .src.debug_utils import run_debug_graph
-from .src.i18n import tr
-# 新增：导入 core helpers
 from .src.core import (
     ACTIVE_USERS_SAVE_INTERVAL_SECONDS,
     ACTIVE_USERS_TRIM_INTERVAL_SECONDS,
     count_active_users,
-    send_onebot_message,
-    schedule_onebot_delete_msg,
+    ensure_today_records,
     record_active,
-    clean_rbq_stats,
-    draw_excluded_users,
-    force_marry_excluded_users,
-    get_group_records,
-    upsert_user_wife_record,
-    get_force_marry_cooldown_status,
-    get_propose_cooldown_status,
-    get_active_user_days,
-    auto_set_other_half_enabled,
-    can_onebot_withdraw,
-    cleanup_inactive,
     save_active_users,
     start_active_users_save_task,
     stop_active_users_save_task,
 )
+from .src.debug import debug_log, log_command_platform
+from .src.debug_utils import run_debug_graph
+from .src.i18n import tr
+from .src.identity import DATABASE_NAME, PLUGIN_NAME
+from .src.utils import is_allowed_group, load_json, match_qq_official_target_command, save_json
 
 
-def _format_remaining_seconds(seconds: float) -> str:
-    total_seconds = max(0, int(seconds))
-    days = total_seconds // 86400
-    hours = (total_seconds % 86400) // 3600
-    mins = (total_seconds % 3600) // 60
-
-    if days > 0:
-        return f"{days}天{hours}小时{mins}分"
-    if hours > 0:
-        return f"{hours}小时{mins}分"
-    if mins > 0:
-        secs = total_seconds % 60
-        return f"{mins}分{secs}秒"
-    return f"{total_seconds}秒"
-
-
-def _migrate_legacy_data(legacy_dir: str, data_dir: str) -> None:
-    """Copy legacy data without deleting it or overwriting newer data."""
-    marker = os.path.join(data_dir, ".legacy_migration_complete")
-    if os.path.exists(marker):
-        return
-    if not os.path.isdir(legacy_dir):
-        os.makedirs(data_dir, exist_ok=True)
-        return
-
-    for root, _, files in os.walk(legacy_dir):
-        relative = os.path.relpath(root, legacy_dir)
-        target_dir = os.path.join(data_dir, relative)
-        os.makedirs(target_dir, exist_ok=True)
-        for filename in files:
-            source = os.path.join(root, filename)
-            target = os.path.join(target_dir, filename)
-            if os.path.exists(target):
-                continue
-            shutil.copy2(source, target)
-            logger.info(f"已迁移插件数据: {source} -> {target}")
-    with open(marker, "w", encoding="utf-8") as migrated:
-        migrated.write("Legacy data copied; original directory retained.\n")
-
-class RandomWifePlugin(Star):
-    def __init__(self, context: Context, config: AstrBotConfig = None):
+class MarryGroupmatePlugin(Star):
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
 
@@ -124,12 +50,7 @@ class RandomWifePlugin(Star):
         self._withdraw_tasks: set[asyncio.Task] = set()
         self._propose_timeout_tasks: set[asyncio.Task] = set()
         
-        # 与 metadata.yaml 中的插件名一致；保留旧数据目录供回滚使用。
-        plugin_data_root = get_astrbot_plugin_data_path()
-        self.data_dir = os.path.join(plugin_data_root, "astrbot_plugin_wifepicker")
-        _migrate_legacy_data(
-            os.path.join(plugin_data_root, "random_wife"), self.data_dir
-        )
+        self.data_dir = os.fspath(StarTools.get_data_dir(PLUGIN_NAME))
         self.records_file = os.path.join(self.data_dir, "wife_records.json")
         self.active_file = os.path.join(self.data_dir, "active_users.json") 
         self.official_profiles_file = os.path.join(
@@ -140,13 +61,10 @@ class RandomWifePlugin(Star):
         self.marriage_action_file = os.path.join(self.data_dir, "marriage_action_today.json")
         self.rbq_stats_file = os.path.join(self.data_dir, "rbq_stats.json")
         
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir, exist_ok=True)
-
         self.proposal_store = None
         self._proposal_cleanup_task = None
         try:
-            self.proposal_store = ProposalStore(os.path.join(self.data_dir, "wifepicker.db"))
+            self.proposal_store = ProposalStore(os.path.join(self.data_dir, DATABASE_NAME))
             self._proposal_cleanup_task = asyncio.create_task(self._proposal_cleanup_loop())
         except Exception as exc:
             logger.error(f"求婚统计数据库初始化失败: {exc}")
@@ -173,7 +91,7 @@ class RandomWifePlugin(Star):
             self.affinity_dashboard = AffinityDashboard(self)
             self.affinity_dashboard.register()
         except (ImportError, AttributeError) as exc:
-            logger.warning(f"[wifepicker.affinity.page] 当前 AstrBot 未提供兼容的插件页面接口：{exc}")
+            logger.warning(f"[marry_groupmate.affinity.page] 当前 AstrBot 未提供兼容的插件页面接口：{exc}")
 
         self._keyword_router = KeywordRouter(routes=_DEFAULT_KEYWORD_ROUTES)
         self._keyword_handlers = {
@@ -184,8 +102,6 @@ class RandomWifePlugin(Star):
             "rbq_ranking": self.rbq_ranking,
             "proposal_ranking": self.proposal_ranking,
             "show_help": self._cmd_show_help,
-            "reset_records": self._cmd_reset_records,
-            "reset_force_cd": self._cmd_reset_force_cd,
             "propose_command": self.propose_command,
             "pick_wife": self._cmd_pick_wife,
             "show_affinity": self.show_affinity,
@@ -193,7 +109,7 @@ class RandomWifePlugin(Star):
             "breakup": self._cmd_breakup,
         }
         self._keyword_trigger_block_prefixes = ("/", "!", "！")
-        logger.info(f"抽老婆插件已加载。数据目录: {self.data_dir}")
+        logger.info(f"娶群友已加载。数据目录: {self.data_dir}")
         debug_log(
             self,
             "debug",
@@ -202,23 +118,25 @@ class RandomWifePlugin(Star):
         )
 
     def _get_keyword_trigger_mode(self) -> MatchMode:
-        """从配置中获取匹配模式，默认为包含匹配"""
-        # 这里的 config.get 会读取插件配置，建议在控制面板设置里加上这个 key
-        raw = self.config.get("keyword_trigger_mode", "contains")
+        """读取无前缀关键词的匹配模式。"""
+        raw = self.config.get("keyword_trigger_mode", "exact")
         try:
             return MatchMode(str(raw))
         except ValueError:
-            return MatchMode.CONTAINS
+            return MatchMode.EXACT
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def keyword_trigger(self, event: AstrMessageEvent):
-        async for result in handle_breakup_response(self, event):
-            yield result
-        if getattr(event, "_wifepicker_breakup_handled", False):
+        if not is_allowed_group(str(event.get_group_id()), self.config):
             return
         # Official mentions may remain text, so CommandFilter sees the command
         # and <@openid> as one token. Route only this missing-space case here.
-        action = match_qq_official_target_command(event)
+        keywords_enabled = self.config.get("keyword_trigger_enabled", False)
+        action = (
+            match_qq_official_target_command(event)
+            if event.is_at_or_wake_command or keywords_enabled
+            else None
+        )
         if action:
             log_command_platform(self, event)
             event.stop_event()
@@ -227,11 +145,12 @@ class RandomWifePlugin(Star):
                 yield result
             return
         # 1. 检查开关
-        if not self.config.get("keyword_trigger_enabled", False):
+        if not keywords_enabled:
             return
 
         message_str = event.message_str
-        if not message_str: return
+        if not message_str:
+            return
 
         # 2. @bot / 唤醒前缀场景下跳过，交给 @filter.command 处理。
         #    原因：WakingCheckStage 会把 keyword_trigger（EventMessageTypeFilter 不检查
@@ -241,9 +160,9 @@ class RandomWifePlugin(Star):
             return
 
         # 3. 如果消息本身就带了 / 或 !，说明是正规指令，交给 @filter.command 去处理
-        if message_str.startswith(self._keyword_trigger_block_prefixes):
+        if message_str.lstrip().startswith(self._keyword_trigger_block_prefixes):
             return
-        # 3. 开始匹配关键词（例如：今日老婆）
+        # 3. 开始匹配关键词（例如抽老婆）
         mode = self._get_keyword_trigger_mode()
         route = self._keyword_router.match_route(message_str, mode=mode)
         # 兼容模式：如果没有精准匹配，尝试命令式匹配
@@ -262,8 +181,11 @@ class RandomWifePlugin(Star):
                 async for result in handler(event):
                     yield result
                 
-    @filter.event_message_type(filter.EventMessageType.ALL)
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=5)
     async def track_active(self, event: AstrMessageEvent):
+        group_id = event.get_group_id()
+        if not group_id or not is_allowed_group(str(group_id), self.config):
+            return
         dashboard = getattr(self, "affinity_dashboard", None)
         if dashboard is not None:
             dashboard.profiles.observe(event)
@@ -274,267 +196,30 @@ class RandomWifePlugin(Star):
         record_active(self, event)
         async for result in handle_breakup_response(self, event):
             yield result
-        if getattr(event, "_wifepicker_breakup_handled", False):
+        if event.is_stopped():
             return
-        # 在这里触发挑选回复检查钩子，因为它能捕获所有群内纯文本
         if not event.is_private_chat():
             async for result in handle_pick_response(self, event):
                 yield result
-        # 在这里触发求婚回复检查钩子，因为它能捕获所有群内纯文本
-        if not event.is_private_chat():
-            async for result in handle_propose_response(self, event):
-                yield result
+            if not event.is_stopped():
+                async for result in handle_propose_response(self, event):
+                    yield result
 
-    @filter.command("今日老婆", alias={"抽老婆", "jrlp", "dailywife", "wife"})
+    @filter.command("抽老婆", alias={"娶群友"})
     async def draw_wife(self, event: AstrMessageEvent):
+        """从本群的活跃候选中抽取，别名为「娶群友」。"""
         log_command_platform(self, event)
         event.stop_event()
         async for result in self._cmd_draw_wife(event):
             yield result
 
     async def _cmd_draw_wife(self, event: AstrMessageEvent):
-        # 清理完不在群的人后
-        
-        if event.is_private_chat():
-            yield event.plain_result(tr(self, "group_only"))
-            return
+        async for result in cmd_draw_wife(self, event):
+            yield result
 
-        group_id = str(event.get_group_id())
-        debug_log(
-            self,
-            "draw",
-            f"start group={group_id} user={event.get_sender_id()} "
-            f"platform={event.get_platform_name()} active_days={get_active_user_days(self)}",
-        )
-        save_active_users(self, force_trim=True)
-        if not is_allowed_group(group_id, self.config):
-            debug_log(self, "draw", f"skip disallowed group={group_id}")
-            return
-
-        user_id, bot_id = str(event.get_sender_id()), self_user_id(event)
-        cleanup_inactive(self, group_id)
-
-        if has_pending_pick(group_id, user_id):
-            yield event.plain_result(tr(self, "pick_in_progress"))
-            return
-
-        daily_limit = self.config.get("daily_limit", 1)
-        group_records = get_group_records(self, group_id)
-        user_recs = [r for r in group_records if r["user_id"] == user_id]
-        today_count = len(user_recs)
-        debug_log(
-            self,
-            "draw",
-            f"daily group={group_id} user={user_id} today_count={today_count} limit={daily_limit}",
-        )
-
-        if today_count >= daily_limit:
-            debug_log(self, "draw", f"hit daily limit group={group_id} user={user_id}")
-            if daily_limit == 1:
-                wife_record = user_recs[0]
-                wife_name, wife_id = wife_record["wife_name"], wife_record["wife_id"]
-                wife_name = get_display_name(self, event, wife_id, fallback=wife_name)
-                wife_avatar = await get_avatar_source(self, event, wife_id)
-                if can_onebot_withdraw(self, event):
-                    message_id = await send_onebot_message(
-                        self,
-                        event,
-                        message=[
-                            {"type": "at", "data": {"qq": user_id}},
-                            {
-                                "type": "text",
-                                "data": {
-                                    "text": tr(self, "wife_existing", wife_name=wife_name)
-                                },
-                            },
-                            {"type": "image", "data": {"file": wife_avatar}},
-                        ],
-                    )
-                    if message_id is not None:
-                        schedule_onebot_delete_msg(self, event.bot, message_id=message_id)
-                    return
-
-                if is_qq_official_event(event):
-                    yield qq_official_draw_result(
-                        event, user_id,
-                        tr(self, "wife_existing", wife_name=wife_name), wife_avatar,
-                    )
-                    return
-
-                chain = [
-                    mention_user(self, event, user_id),
-                    Comp.Plain(tr(self, "wife_existing", wife_name=wife_name)),
-                ]
-                if wife_avatar:
-                    chain.append(avatar_image(wife_avatar))
-                yield platform_result(event, chain)
-            else:
-                text = tr(self, "daily_limit", count=today_count)
-                if can_onebot_withdraw(self, event):
-                    message_id = await send_onebot_message(
-                        self, event, message=[{"type": "text", "data": {"text": text}}]
-                    )
-                    if message_id is not None:
-                        schedule_onebot_delete_msg(self, event.bot, message_id=message_id)
-                    return
-
-                yield event.plain_result(text)
-            return
-
-        # --- 增强：获取最新的群成员列表以过滤退群者 ---
-        current_member_ids: list[str] = []
-        members = []
-        try:
-            members = await get_platform_members(self, event)
-            current_member_ids = [
-                str(m.get("user_id")) for m in members if not m.get("is_bot", False)
-            ]
-            if current_member_ids:
-                debug_log(
-                    self,
-                    "draw",
-                    f"member_list group={group_id} members={len(current_member_ids)}",
-                )
-        except Exception as e:
-            logger.error(f"获取群成员列表失败，将使用缓存池: {e}")
-            debug_log(self, "draw", f"member_list failed group={group_id} error={e}")
-
-        active_pool = self.active_users.get(group_id, {})
-        excluded = draw_excluded_users(self)
-        if not self.config.get("allow_marry_bot", False):
-            excluded.add(bot_id)
-        excluded.update([user_id, "0"])
-
-        # 核心逻辑：如果在 aiocqhttp 平台，只从【当前还在群里】的人中抽取
-        if current_member_ids or is_telegram_event(event):
-            pool = [
-                uid
-                for uid in active_pool.keys()
-                if uid not in excluded and uid in current_member_ids
-            ]
-
-            # 同时顺便清理一下 active_users，把不在群里的人删掉
-            removed_uids = [
-                uid for uid in active_pool.keys() if uid not in current_member_ids
-            ]
-            if removed_uids:
-                for r_uid in removed_uids:
-                    del self.active_users[group_id][r_uid]
-                self._active_user_count = max(
-                    0, self._active_user_count - len(removed_uids)
-                )
-                debug_log(
-                    self,
-                    "draw",
-                    f"removed_left_group group={group_id} count={len(removed_uids)}",
-                )
-                save_active_users(self)
-        else:
-            pool = [uid for uid in active_pool.keys() if uid not in excluded]
-
-        debug_log(
-            self,
-            "draw",
-            f"pool group={group_id} active_pool={len(active_pool)} "
-            f"excluded={len(excluded)} candidates={len(pool)}",
-        )
-        if not pool:
-            yield event.plain_result(
-                tr(self, "wife_pool_empty", days=get_active_user_days(self))
-            )
-            return
-
-        wife_id = random.choice(pool)
-        wife_name = get_display_name(self, event, wife_id)
-        user_name = get_display_name(
-            self, event, user_id, fallback=event.get_sender_name() or f"用户({user_id})"
-        )
-
-        wife_name = resolve_member_name(
-            members, user_id=wife_id, fallback=wife_name
-        )
-        user_name = resolve_member_name(
-            members, user_id=user_id, fallback=user_name
-        )
-
-        timestamp = datetime.now().isoformat()
-        debug_log(self, "draw", f"selected group={group_id} user={user_id} wife={wife_id}")
-        group_records.append(
-            {
-                "user_id": user_id,
-                "wife_id": wife_id,
-                "wife_name": wife_name,
-                "timestamp": timestamp,
-            }
-        )
-
-        maybe_add_other_half_record(
-            records=group_records,
-            user_id=user_id,
-            user_name=user_name,
-            wife_id=wife_id,
-            wife_name=wife_name,
-            enabled=auto_set_other_half_enabled(self),
-            timestamp=timestamp,
-        )
-
-        save_json(self.records_file, self.records, self.records_file, self.config)
-
-        avatar_url = await get_avatar_source(self, event, wife_id)
-        suffix_text = tr(
-            self,
-            "draw_suffix",
-            remaining=max(0, daily_limit - today_count - 1),
-        )
-        result_text = tr(self, "draw_result", wife_name=wife_name)
-        
-        at_waifu_enabled = self.config.get("at_waifu", False)
-        if can_onebot_withdraw(self, event):
-            # --- OneBot 路径改动 ---
-            msg_list = [
-                {"type": "at", "data": {"qq": user_id}},
-                {"type": "text", "data": {"text": result_text}},
-            ]
-            
-            # 如果开启了艾特老婆，就把老婆的 at 加进去
-            if at_waifu_enabled:
-                msg_list.append({"type": "at", "data": {"qq": wife_id}})
-                msg_list.append({"type": "text", "data": {"text": " "}}) # 加个空格美化
-
-            msg_list.extend([
-                {"type": "image", "data": {"file": avatar_url}},
-                {"type": "text", "data": {"text": suffix_text}},
-            ])
-
-            message_id = await send_onebot_message(self, event, message=msg_list)
-            if message_id is not None:
-                schedule_onebot_delete_msg(self, event.bot, message_id=message_id)
-            return
-
-        if is_qq_official_event(event):
-            yield qq_official_draw_result(
-                event, user_id, result_text, avatar_url,
-                suffix=suffix_text,
-                wife_id=wife_id if at_waifu_enabled else None,
-            )
-            return
-
-        # --- AstrBot 标准路径改动 ---
-        chain = [
-            mention_user(self, event, user_id),
-            Comp.Plain(result_text),
-        ]
-        
-        if at_waifu_enabled:
-            chain.append(mention_user(self, event, wife_id))
-        
-        if avatar_url:
-            chain.append(avatar_image(avatar_url))
-        chain.append(Comp.Plain(suffix_text))
-        yield platform_result(event, chain)
-
-    @filter.command("我的老婆", alias={"抽取历史", "wdlp", "mywife"})
+    @filter.command("群友抽取记录")
     async def show_history(self, event: AstrMessageEvent):
+        """查看本群今日的抽取记录和剩余次数。"""
         log_command_platform(self, event)
         event.stop_event()
         async for result in self._cmd_show_history(event):
@@ -544,7 +229,7 @@ class RandomWifePlugin(Star):
         async for result in cmd_show_history(self, event):
             yield result
 
-    @filter.command("分手", alias={"fs", "breakup", "离婚"})
+    @filter.command("解除群友关系")
     async def breakup(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
@@ -555,7 +240,7 @@ class RandomWifePlugin(Star):
         async for result in cmd_breakup(self, event):
             yield result
 
-    @filter.command("强娶", alias={"qiangqu", "forcemarry"})
+    @filter.command("强娶群友")
     async def force_marry(self, event: AstrMessageEvent):
         """强娶 + @要娶的那个人"""
         log_command_platform(self, event)
@@ -567,7 +252,7 @@ class RandomWifePlugin(Star):
         async for result in cmd_force_marry(self, event):
             yield result
 
-    @filter.command("关系图", alias={"gxt", "relations"})
+    @filter.command("群友关系图")
     async def show_graph(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
@@ -578,14 +263,14 @@ class RandomWifePlugin(Star):
         async for result in cmd_show_graph(self, event):
             yield result
 
-    @filter.command("rbq排行", alias={"rbqph", "wifeleaderboard"})
+    @filter.command("群友被强娶榜")
     async def rbq_ranking(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
         async for result in cmd_rbq_ranking(self, event):
             yield result
 
-    @filter.command("花心大萝卜榜", alias={"海王榜","花心榜","hxb","hxdlbb","hwb"})
+    @filter.command("群友求婚榜")
     async def proposal_ranking(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
@@ -593,7 +278,7 @@ class RandomWifePlugin(Star):
             yield result
 
     @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("重置记录", alias={"czjl"})
+    @filter.command("群友重置记录")
     async def reset_records(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
@@ -601,23 +286,24 @@ class RandomWifePlugin(Star):
             yield result
 
     async def _cmd_reset_records(self, event: AstrMessageEvent):
+        if event.is_private_chat():
+            yield event.plain_result(tr(self, "group_only"))
+            return
         group_id = str(event.get_group_id())
-        pick_cooldowns = self.records.get("pick_cooldowns", {})
-        if not isinstance(pick_cooldowns, dict):
-            pick_cooldowns = {}
-        pick_cooldowns.pop(group_id, None)
-        self.records = {
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "groups": {},
-            "pick_cooldowns": pick_cooldowns,
-        }
-        self.breakup_records = {}
+        if not is_allowed_group(group_id, self.config):
+            return
+        ensure_today_records(self)
+        self.records["groups"].pop(group_id, None)
+        pick_cooldowns = self.records.get("pick_cooldowns")
+        if isinstance(pick_cooldowns, dict):
+            pick_cooldowns.pop(group_id, None)
+        self.breakup_records.pop(group_id, None)
         save_json(self.records_file, self.records)
         save_json(self.breakup_file, self.breakup_records)
         yield event.plain_result(tr(self, "reset_records"))
 
     @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("重置强娶时间", alias={"czqqsj"})
+    @filter.command("群友重置强娶")
     async def reset_force_cd(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
@@ -625,27 +311,33 @@ class RandomWifePlugin(Star):
             yield result
 
     async def _cmd_reset_force_cd(self, event: AstrMessageEvent):
+        if event.is_private_chat():
+            yield event.plain_result(tr(self, "group_only"))
+            return
         group_id = str(event.get_group_id())
+        if not is_allowed_group(group_id, self.config):
+            return
 
         if hasattr(self, "forced_records") and group_id in self.forced_records:
             self.forced_records[group_id] = {}
             save_json(self.forced_file, self.forced_records)
 
-            logger.info(f"[Wife] 已重置群 {group_id} 的强娶冷却时间")
+            logger.info(f"[marry_groupmate] 已重置群 {group_id} 的强娶冷却时间")
             yield event.plain_result(tr(self, "reset_force_done"))
         else:
             yield event.plain_result(tr(self, "reset_force_empty"))
 
     @filter.permission_type(filter.PermissionType.ADMIN)
-    @filter.command("重置求婚时间", alias={"czqhsj"})
+    @filter.command("群友重置求婚")
     async def reset_propose_cd(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
         async for result in cmd_reset_propose_cd(self, event):
             yield result
 
-    @filter.command("抽老婆帮助", alias={"老婆插件帮助", "clpbz", "wifehelp"})
+    @filter.command("娶群友帮助")
     async def show_help(self, event: AstrMessageEvent):
+        """查看娶群友的群聊玩法。"""
         log_command_platform(self, event)
         event.stop_event()
         async for result in cmd_show_help(self, event):
@@ -655,7 +347,8 @@ class RandomWifePlugin(Star):
         async for result in cmd_show_help(self, event):
             yield result
 
-    @filter.command("debug_graph")
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    @filter.command("群友关系图调试")
     async def debug_graph(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
@@ -666,7 +359,7 @@ class RandomWifePlugin(Star):
         async for result in run_debug_graph(self, event):
             yield result
         
-    @filter.command("求婚", alias={"qh", "propose"})
+    @filter.command("向群友求婚")
     async def propose_command(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
@@ -674,7 +367,7 @@ class RandomWifePlugin(Star):
         async for result in cmd_propose(self, event):
             yield result
 
-    @filter.command("挑选老婆", alias={"txlp", "pickwife"})
+    @filter.command("挑选群友")
     async def pick_wife(self, event: AstrMessageEvent):
         log_command_platform(self, event)
         event.stop_event()
@@ -685,13 +378,13 @@ class RandomWifePlugin(Star):
         async for result in cmd_pick_wife(self, event):
             yield result
 
-    @filter.command("查看好感度", alias={"affinity","查询好感度"})
+    @filter.command("群友好感度")
     async def show_affinity(self, event: AstrMessageEvent):
         event.stop_event()
         async for result in cmd_affinity(self, event):
             yield result
 
-    @filter.command("调整好感度", alias={"setaffinity"})
+    @filter.command("群友调整好感度")
     async def adjust_affinity(self, event: AstrMessageEvent):
         event.stop_event()
         async for result in cmd_affinity(self, event, adjust=True):

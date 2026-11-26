@@ -14,7 +14,7 @@ from ..core import (
     clean_rbq_stats,
     force_marry_excluded_users,
     get_force_marry_cooldown_status,
-    get_group_records,
+    get_group_record_data,
     get_propose_cooldown_status,
     send_onebot_message,
     schedule_onebot_delete_msg,
@@ -135,7 +135,8 @@ async def cmd_force_marry(
     except Exception:
         pass
 
-    group_records = get_group_records(plugin_instance, group_id)
+    group_data = get_group_record_data(plugin_instance, group_id)
+    group_records = group_data["records"]
 
     if group_id not in plugin_instance.rbq_stats:
         plugin_instance.rbq_stats[group_id] = {}
@@ -148,7 +149,7 @@ async def cmd_force_marry(
 
     timestamp = datetime.now().isoformat()
     upsert_user_wife_record(
-        group_records,
+        group_data,
         user_id=user_id,
         wife_id=target_id,
         wife_name=target_name,
@@ -162,7 +163,8 @@ async def cmd_force_marry(
         user_name=user_name,
         wife_id=target_id,
         wife_name=target_name,
-        enabled=auto_set_other_half_enabled(plugin_instance),
+        enabled=auto_set_other_half_enabled(plugin_instance)
+        and not group_data.get("single_draws", {}).get(target_id),
         timestamp=timestamp,
     )
 

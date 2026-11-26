@@ -2,7 +2,6 @@ import asyncio
 import heapq
 import random
 import time
-import os
 from datetime import datetime, timedelta
 from typing import Set
 
@@ -12,11 +11,11 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 
 from .platforms.onebot_api import extract_message_id
 from .debug import debug_log
+from .draw_records import daily_rounds
 from .utils import (
     save_json,
     normalize_user_id_set,
     is_allowed_group,
-    resolve_member_name,
 )
 
 
@@ -400,15 +399,17 @@ def ensure_today_records(plugin) -> None:
         }
 
 
-def get_group_records(plugin, group_id: str) -> list:
+def get_group_record_data(plugin, group_id: str) -> dict:
     ensure_today_records(plugin)
-    if group_id not in plugin.records["groups"]:
-        plugin.records["groups"][group_id] = {"records": []}
-    return plugin.records["groups"][group_id]["records"]
+    return plugin.records["groups"].setdefault(group_id, {"records": []})
+
+
+def get_group_records(plugin, group_id: str) -> list:
+    return get_group_record_data(plugin, group_id)["records"]
 
 
 def upsert_user_wife_record(
-    records: list,
+    group: dict,
     *,
     user_id: str,
     wife_id: str,
@@ -425,14 +426,32 @@ def upsert_user_wife_record(
         "forced": forced,
     }
 
-    user_indexes = [
-        index for index, record in enumerate(records) if str(record.get("user_id")) == user_id
-    ]
-    if daily_limit > 1 and user_indexes:
-        records[random.choice(user_indexes)] = new_record
-        return
-
-    records[:] = [record for record in records if str(record.get("user_id")) != user_id]
+    records = group["records"]
+    rounds = daily_rounds(group, user_id)
+    replaced = [random.choice(rounds)] if daily_limit > 1 and rounds else rounds
+    if replaced:
+        removed = {id(record) for round_ in replaced for record in round_.matches}
+        former_matches = {
+            (record["wife_id"], record["timestamp"])
+            for round_ in replaced if round_.outcome in ("double", "harem")
+            for record in round_.matches
+        }
+        records[:] = [
+            record for record in records
+            if id(record) not in removed and not (
+                record.get("auto_set")
+                and record.get("wife_id") == user_id
+                and (record.get("user_id"), record.get("timestamp")) in former_matches
+            )
+        ]
+        single_draws = group.get("single_draws", {})
+        single_times = {round_.timestamp for round_ in replaced if round_.outcome == "single"}
+        if single_times:
+            remaining = [stamp for stamp in single_draws.get(user_id, []) if stamp not in single_times]
+            if remaining:
+                single_draws[user_id] = remaining
+            else:
+                single_draws.pop(user_id, None)
     records.append(new_record)
 
 

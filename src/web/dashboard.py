@@ -9,8 +9,7 @@ from .marriage import marriage_report, today_groups
 from .admin import ConsoleAdmin
 from .profiles import GroupProfiles
 from ..affinity.service import allowed_group, enabled, settings
-
-PLUGIN_NAME = "astrbot_plugin_wifepicker"
+from ..identity import PLUGIN_NAME
 
 
 class AffinityDashboard:
@@ -37,7 +36,7 @@ class AffinityDashboard:
             ("config/save", self.admin.save_config, ["POST"]), ("storage", self.admin.storage, ["GET"]),
             ("table", self.admin.table, ["GET"]), ("json", self.admin.json_file, ["GET"]),
         ):
-            self.plugin.context.register_web_api(f"/{PLUGIN_NAME}/affinity/admin/{endpoint}", handler, methods, "今日老婆控制台：" + endpoint)
+            self.plugin.context.register_web_api(f"/{PLUGIN_NAME}/affinity/admin/{endpoint}", handler, methods, "娶群友控制台：" + endpoint)
 
     def close(self):
         self.admin.close()
@@ -77,7 +76,7 @@ class AffinityDashboard:
             return self.error_response(str(exc), status_code=403)
         if isinstance(exc, ValueError):
             return self.error_response(str(exc), status_code=400)
-        self.plugin.affinity.logger.error(f"[wifepicker.affinity.page] 页面查询失败：{type(exc).__name__}: {exc}")
+        self.plugin.affinity.logger.error(f"[marry_groupmate.affinity.page] 页面查询失败：{type(exc).__name__}: {exc}")
         return self.error_response("暂时无法读取好感度数据，请查看插件日志", status_code=500)
 
     async def meta(self):

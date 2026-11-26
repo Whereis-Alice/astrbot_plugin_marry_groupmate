@@ -15,17 +15,20 @@ from ..core import (
     cleanup_inactive,
     draw_excluded_users,
     get_active_user_days,
+    get_group_record_data,
     get_group_records,
     schedule_onebot_delete_msg,
     send_onebot_message,
 )
+from ..draw_records import daily_rounds
 from ..utils import is_allowed_group, resolve_member_name, save_json
 from ..platforms.user_profiles import get_avatar_source, get_display_name, get_platform_members
 from ...waifu_relations import maybe_add_other_half_record
 from ..i18n import tr
 from ..debug import debug_log
+from .qq_official.message import is_official_group, plain_result, reply_action
 from .qq_official.pick_wife_official import (
-    is_official_group, send_candidate_list, send_pick_confirmation,
+    PICK_REPLY, send_candidate_list, send_pick_confirmation,
 )
 
 PICK_RESPONSE_SECONDS = 30
@@ -230,7 +233,7 @@ def _format_candidate_list(plugin_instance, req: PickRequest) -> str:
 async def _send_candidate_list(plugin_instance, event, req):
     text = _format_candidate_list(plugin_instance, req)
     if not await send_candidate_list(plugin_instance, event, req, text):
-        yield event.plain_result(text)
+        yield plain_result(event, text)
 
 
 # 从活跃池里捞一批人来当候选（人话：先给你物色几个对象看看，有没有顺眼的）
@@ -301,8 +304,8 @@ async def cmd_pick_wife(plugin_instance, event: AstrMessageEvent):
         return
 
     user_id = str(event.get_sender_id())
-    group_records = get_group_records(plugin_instance, group_id)
-    today_count = len([r for r in group_records if r["user_id"] == user_id])
+    group_data = get_group_record_data(plugin_instance, group_id)
+    today_count = len(daily_rounds(group_data, user_id))
     daily_limit = plugin_instance.config.get("daily_limit", 1)
     debug_log(plugin_instance, "pick", f"daily group={group_id} user={user_id} today_count={today_count} limit={daily_limit}")
     if today_count >= daily_limit:
@@ -377,7 +380,7 @@ async def _send_pick_confirmation(
     avatar_url = await get_avatar_source(plugin_instance, event, wife_id)
     text = tr(plugin_instance, "pick_success", wife_name=wife_name)
     if is_official_group(event):
-        async for result in send_pick_confirmation(event, user_id, text, avatar_url):
+        async for result in send_pick_confirmation(plugin_instance, event, user_id, text, avatar_url):
             yield result
         return
     if can_onebot_withdraw(plugin_instance, event):
@@ -411,7 +414,9 @@ async def handle_pick_response(plugin_instance, event: AstrMessageEvent):
 
     group_id = str(event.get_group_id())
     user_id = str(event.get_sender_id())
-    msg = event.message_str.strip()
+    msg = reply_action(event.message_str, PICK_REPLY)
+    if not msg:
+        return
 
     previous_req = pick_requests.get(group_id, {}).get(user_id)
     if isinstance(previous_req, PickRequest) and previous_req.expire_at <= time.time():
@@ -497,10 +502,12 @@ async def handle_pick_response(plugin_instance, event: AstrMessageEvent):
 
     wife_id = req.candidates[index - 1]
     wife_name = req.candidate_names[index - 1]
-    group_records = get_group_records(plugin_instance, group_id)
+    group_data = get_group_record_data(plugin_instance, group_id)
+    group_records = group_data["records"]
     daily_limit = plugin_instance.config.get("daily_limit", 1)
-    debug_log(plugin_instance, "pick", f"confirm_check group={group_id} user={user_id} index={index} wife={wife_id} today_count={sum(r['user_id'] == user_id for r in group_records)} limit={daily_limit}")
-    if sum(r["user_id"] == user_id for r in group_records) >= daily_limit:
+    today_count = len(daily_rounds(group_data, user_id))
+    debug_log(plugin_instance, "pick", f"confirm_check group={group_id} user={user_id} index={index} wife={wife_id} today_count={today_count} limit={daily_limit}")
+    if today_count >= daily_limit:
         debug_log(plugin_instance, "pick", f"confirm_blocked group={group_id} user={user_id} reason=daily_limit")
         _delete_request(group_id, user_id)
         event.stop_event()
@@ -531,7 +538,8 @@ async def handle_pick_response(plugin_instance, event: AstrMessageEvent):
         user_name=user_name,
         wife_id=wife_id,
         wife_name=wife_name,
-        enabled=auto_set_other_half_enabled(plugin_instance),
+        enabled=auto_set_other_half_enabled(plugin_instance)
+        and not group_data.get("single_draws", {}).get(wife_id),
         timestamp=timestamp,
     )
 

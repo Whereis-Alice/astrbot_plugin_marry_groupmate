@@ -146,7 +146,7 @@ def download_file(path, filename, size, expected, endpoint, started, has_fallbac
             if offset >= size:
                 part.unlink()
                 offset = 0
-            headers = {"User-Agent": "WifePicker-Affinity/1"}
+            headers = {"User-Agent": "MarryGroupmate-Affinity/1"}
             if offset:
                 headers["Range"] = f"bytes={offset}-"
             request = urllib.request.Request(url, headers=headers)

@@ -60,22 +60,16 @@ def normalize_user_id_set(values: object) -> set[str]:
 
 def match_qq_official_target_command(event: AstrMessageEvent) -> str | None:
     """Recognize official commands whose textual mention has no separating space."""
+    from .constants import OFFICIAL_MENTION_ROUTES
     from .platforms.user_profiles import is_qq_official_event
 
     if not is_qq_official_event(event):
         return None
     match = re.match(
-        r"^\s*/?(强娶|qiangqu|forcemarry|求婚|qh|propose|查看好感度|affinity|调整好感度|setaffinity)(?=<@!?[A-Za-z0-9_-]+>)",
+        r"^\s*[/!！]?([^\s<]+)(?=<@!?[A-Za-z0-9_-]+>)",
         str(getattr(event, "message_str", "") or ""),
     )
-    if match is None:
-        return None
-    command = match[1]
-    if command in {"查看好感度", "affinity"}:
-        return "show_affinity"
-    if command in {"调整好感度", "setaffinity"}:
-        return "adjust_affinity"
-    return "force_marry" if command in {"强娶", "qiangqu", "forcemarry"} else "propose_command"
+    return OFFICIAL_MENTION_ROUTES.get(match[1]) if match else None
 
 
 def extract_target_id_from_message(event: AstrMessageEvent, plugin=None) -> str | None:
@@ -114,13 +108,13 @@ def extract_target_id_from_message(event: AstrMessageEvent, plugin=None) -> str 
             if qq != self_id:
                 if len(mentions) > 1 or mentions[0] == self_id:
                     logger.info(
-                        f"[wifepicker] mention target resolved: mentions={mentions}, "
+                        f"[marry_groupmate] mention target resolved: mentions={mentions}, "
                         f"self_id={self_id}, selected={qq}"
                     )
                 return qq
 
         logger.info(
-            f"[wifepicker] mention target resolved to bot/self only: "
+            f"[marry_groupmate] mention target resolved to bot/self only: "
             f"mentions={mentions}, self_id={self_id}"
         )
         return mentions[0]
@@ -132,13 +126,13 @@ def extract_target_id_from_message(event: AstrMessageEvent, plugin=None) -> str 
             if qq != self_id:
                 if len(cq_mentions) > 1 or cq_mentions[0] == self_id:
                     logger.info(
-                        f"[wifepicker] cq target resolved: mentions={cq_mentions}, "
+                        f"[marry_groupmate] cq target resolved: mentions={cq_mentions}, "
                         f"self_id={self_id}, selected={qq}"
                     )
                 return qq
 
         logger.info(
-            f"[wifepicker] cq target resolved to bot/self only: "
+            f"[marry_groupmate] cq target resolved to bot/self only: "
             f"mentions={cq_mentions}, self_id={self_id}"
         )
         return cq_mentions[0]
@@ -149,13 +143,13 @@ def extract_target_id_from_message(event: AstrMessageEvent, plugin=None) -> str 
             if qq != self_id:
                 if len(plain_mentions) > 1 or plain_mentions[0] == self_id:
                     logger.info(
-                        f"[wifepicker] plain target resolved: mentions={plain_mentions}, "
+                        f"[marry_groupmate] plain target resolved: mentions={plain_mentions}, "
                         f"self_id={self_id}, selected={qq}"
                     )
                 return qq
 
         logger.info(
-            f"[wifepicker] plain target resolved to bot/self only: "
+            f"[marry_groupmate] plain target resolved to bot/self only: "
             f"mentions={plain_mentions}, self_id={self_id}"
         )
         return plain_mentions[0]

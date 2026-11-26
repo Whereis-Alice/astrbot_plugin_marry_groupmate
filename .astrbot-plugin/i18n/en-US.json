@@ -1,12 +1,12 @@
 {
   "views": {
-    "affinity": {"title": "Wife of the Day", "description": "View daily wife relationships, affinity, plugin logs, configuration and stored data."}
+    "affinity": {"title": "Marry Groupmate", "description": "View daily wife relationships, affinity, plugin logs, configuration and stored data."}
   },
   "pages": {
-    "affinity": {"title": "Wife of the Day", "description": "View daily wife relationships, affinity, plugin logs, configuration and stored data."}
+    "affinity": {"title": "Marry Groupmate", "description": "View daily wife relationships, affinity, plugin logs, configuration and stored data."}
   },
   "metadata": {
-    "display_name": "Wife of the Day",
+    "display_name": "Marry Groupmate",
     "short_desc": "Draw an active group member as your wife of the day.",
     "desc": "A group-chat game that draws active members as wives of the day, with picking, proposals, forced marriage, rankings, and relationship graphs."
   },
