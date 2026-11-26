@@ -1,7 +1,7 @@
 name: astrbot_plugin_marry_groupmate
 display_name: 娶群友
 desc: 群聊互动插件。抽取活跃群友，支持挑选、求婚、关系图和 QQ 官方机器人。
-version: v1.0.0
+version: v1.0.1
 author: Whereis-Alice
 repo: https://github.com/Whereis-Alice/astrbot_plugin_marry_groupmate
 astrbot_version: ">=4.16,<5"

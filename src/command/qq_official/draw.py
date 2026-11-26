@@ -21,6 +21,7 @@ async def draw_card(
     avatar_url: str | None,
     *,
     suffix: str = "",
+    remaining: str = "",
     wife_id: str | None = None,
 ):
     """Send a draw result and shortcuts, yielding a plain reply when required."""
@@ -30,6 +31,8 @@ async def draw_card(
             subject += f" {mention(wife_id)}"
         if suffix.strip():
             subject += f"\n\n{escape_markdown(suffix.strip())}"
+        if remaining.strip():
+            subject += f"\n\n> {escape_markdown(remaining.strip())}"
         actions = (
             ("history", "群友抽取记录", "抽取记录"),
             ("help", "娶群友帮助", "玩法帮助"),
@@ -54,4 +57,5 @@ async def draw_card(
             image=await markdown_image(avatar_url),
         ):
             return
-    yield plain_result(event, f"{text.strip()}\n{suffix.strip()}".strip())
+    footer = (suffix + remaining).strip()
+    yield plain_result(event, f"{text.strip()}\n{footer}".strip())

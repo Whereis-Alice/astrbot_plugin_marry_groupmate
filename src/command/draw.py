@@ -97,7 +97,7 @@ def _save_draw(
 
 
 async def _send_result(
-    plugin, event, user_id, text, matches=(), *, suffix="", notify=False
+    plugin, event, user_id, text, matches=(), *, suffix="", remaining="", notify=False
 ):
     ids = [record["wife_id"] for record in matches]
     # Keep multi-match replies compact in chat and the official QQ card.
@@ -113,11 +113,13 @@ async def _send_result(
             text,
             avatar_url,
             suffix=suffix,
+            remaining=remaining,
             wife_id=mentions[0] if len(mentions) == 1 else None,
         ):
             yield result
         return
 
+    footer = suffix + remaining
     if can_onebot_withdraw(plugin, event):
         message = [
             {"type": "at", "data": {"qq": user_id}},
@@ -127,8 +129,8 @@ async def _send_result(
             message.append({"type": "at", "data": {"qq": target}})
         if avatar_url:
             message.append({"type": "image", "data": {"file": avatar_url}})
-        if suffix:
-            message.append({"type": "text", "data": {"text": suffix}})
+        if footer:
+            message.append({"type": "text", "data": {"text": footer}})
         message_id = await send_onebot_message(plugin, event, message=message)
         if message_id is not None:
             schedule_onebot_delete_msg(plugin, event.bot, message_id=message_id)
@@ -138,8 +140,8 @@ async def _send_result(
     chain.extend(mention_user(plugin, event, target) for target in mentions)
     if avatar_url:
         chain.append(avatar_image(avatar_url))
-    if suffix:
-        chain.append(Comp.Plain(suffix))
+    if footer:
+        chain.append(Comp.Plain(footer))
     yield platform_result(event, chain)
 
 
@@ -152,9 +154,10 @@ async def _send_round(
         else row["wife_name"]
         for row in round_.matches
     ]
-    suffix = (
+    remaining = (
         "" if existing else tr(plugin, "draw_remaining", remaining=max(0, limit - used))
     )
+    suffix = ""
     if round_.outcome == "single":
         text = tr(plugin, "draw_single")
     elif round_.outcome in ("double", "harem"):
@@ -165,7 +168,7 @@ async def _send_round(
         key = "wife_existing" if existing else "draw_result"
         text = tr(plugin, key, wife_name=names[0])
         if not existing:
-            suffix = tr(plugin, "draw_suffix", remaining=max(0, limit - used))
+            suffix = tr(plugin, "draw_suffix")
     async for result in _send_result(
         plugin,
         event,
@@ -173,6 +176,7 @@ async def _send_round(
         text,
         round_.matches,
         suffix=suffix,
+        remaining=remaining,
         notify=not existing,
     ):
         yield result

@@ -3,12 +3,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from astrbot_plugin_marry_groupmate.src.command import draw
 from astrbot_plugin_marry_groupmate.src.command.qq_official import images, message
 from astrbot_plugin_marry_groupmate.src.command.qq_official.draw import draw_card
 from astrbot_plugin_marry_groupmate.src.command.qq_official.pick_wife_official import (
     PICK_REPLY,
     build_keyboard,
 )
+from astrbot_plugin_marry_groupmate.src.draw_records import DrawRound
 from PIL import Image
 
 
@@ -69,6 +71,51 @@ async def test_timeout_does_not_send_a_duplicate(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("outcome", "existing", "heading", "expected_quote"),
+    [
+        ("normal", False, "请好好对待她哦", "> 剩余抽取次数：0次"),
+        ("single", False, "今天打光棍啦", "> 剩余抽取次数：0次"),
+        ("double", False, "包二奶", "> 剩余抽取次数：0次"),
+        ("normal", True, "你今天已经有老婆了哦", None),
+    ],
+)
+async def test_draw_card_quotes_only_remaining_draws(
+    monkeypatch, outcome, existing, heading, expected_quote
+):
+    posted = AsyncMock(return_value=200)
+    monkeypatch.setattr(message, "_post", posted)
+    monkeypatch.setattr(
+        draw, "get_display_name", lambda *_args, **kwargs: kwargs["fallback"]
+    )
+    monkeypatch.setattr(draw, "get_avatar_sources", AsyncMock(return_value={}))
+    matches = [] if outcome == "single" else [{"wife_id": "u2", "wife_name": "成员"}]
+    if outcome == "double":
+        matches.append({"wife_id": "u3", "wife_name": "另一位成员"})
+    round_ = DrawRound(timestamp="", outcome=outcome, matches=matches)
+
+    replies = [
+        result
+        async for result in draw._send_round(
+            SimpleNamespace(config={}),
+            event_for(),
+            "user",
+            round_,
+            limit=1,
+            used=1,
+            existing=existing,
+        )
+    ]
+
+    assert not replies
+    content = posted.await_args.args[2]["markdown"]["content"]
+    assert heading in content
+    quotes = [line for line in content.splitlines() if line.startswith(">")]
+    assert quotes == ([expected_quote] if expected_quote else [])
+    assert content.count("剩余抽取次数") == int(expected_quote is not None)
+
+
+@pytest.mark.asyncio
 async def test_markdown_off_uses_plain_reply_with_legacy_result_type(monkeypatch):
     class LegacyResult:
         def __init__(self, text):
@@ -85,9 +132,18 @@ async def test_markdown_off_uses_plain_reply_with_legacy_result_type(monkeypatch
     event.plain_result = LegacyResult
     plugin = SimpleNamespace(config={"qq_official_markdown": False})
     replies = [
-        result async for result in draw_card(plugin, event, "user", "[成员]", None)
+        result
+        async for result in draw_card(
+            plugin,
+            event,
+            "user",
+            "[成员]",
+            None,
+            suffix="\n请好好对待她哦",
+            remaining="\n剩余抽取次数：0次",
+        )
     ]
-    assert replies[0].text == "[成员]"
+    assert replies[0].text == "[成员]\n请好好对待她哦\n剩余抽取次数：0次"
     assert not replies[0].should_render_image
     posted.assert_not_awaited()
 
