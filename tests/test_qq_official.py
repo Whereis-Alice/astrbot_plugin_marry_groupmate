@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from astrbot_plugin_marry_groupmate.src.command import draw
+from astrbot_plugin_marry_groupmate.src.command.qq_official import draw as official_draw
 from astrbot_plugin_marry_groupmate.src.command.qq_official import images, message
 from astrbot_plugin_marry_groupmate.src.command.qq_official.draw import draw_card
 from astrbot_plugin_marry_groupmate.src.command.qq_official.pick_wife_official import (
@@ -11,6 +12,7 @@ from astrbot_plugin_marry_groupmate.src.command.qq_official.pick_wife_official i
     build_keyboard,
 )
 from astrbot_plugin_marry_groupmate.src.draw_records import DrawRound
+from astrbot_plugin_marry_groupmate.src.platforms import qq_official_avatars
 from PIL import Image
 
 
@@ -75,8 +77,9 @@ async def test_timeout_does_not_send_a_duplicate(monkeypatch):
     ("outcome", "existing", "heading", "expected_quote"),
     [
         ("normal", False, "请好好对待她哦", "> 剩余抽取次数：0次"),
-        ("single", False, "今天打光棍啦", "> 剩余抽取次数：0次"),
-        ("double", False, "包二奶", "> 剩余抽取次数：0次"),
+        ("single", False, "今天打光棍啦！", "> 剩余抽取次数：0次"),
+        ("double", False, "你今天包了二奶！", "> 剩余抽取次数：0次"),
+        ("harem", False, "你今天开后宫了！", "> 剩余抽取次数：0次"),
         ("normal", True, "你今天已经有老婆了哦", None),
     ],
 )
@@ -90,8 +93,10 @@ async def test_draw_card_quotes_only_remaining_draws(
     )
     monkeypatch.setattr(draw, "get_avatar_sources", AsyncMock(return_value={}))
     matches = [] if outcome == "single" else [{"wife_id": "u2", "wife_name": "成员"}]
-    if outcome == "double":
+    if outcome in ("double", "harem"):
         matches.append({"wife_id": "u3", "wife_name": "另一位成员"})
+    if outcome == "harem":
+        matches.append({"wife_id": "u4", "wife_name": "第三位成员"})
     round_ = DrawRound(timestamp="", outcome=outcome, matches=matches)
 
     replies = [
@@ -113,6 +118,37 @@ async def test_draw_card_quotes_only_remaining_draws(
     quotes = [line for line in content.splitlines() if line.startswith(">")]
     assert quotes == ([expected_quote] if expected_quote else [])
     assert content.count("剩余抽取次数") == int(expected_quote is not None)
+
+
+@pytest.mark.asyncio
+async def test_multiple_matches_choose_the_first_available_avatar(monkeypatch):
+    plugin = SimpleNamespace(config={})
+    event = event_for()
+    url = "https://thirdqq.qlogo.cn/qqapp/app/second/640"
+    avatar_lookup = AsyncMock(return_value={"first": None, "second": url})
+    markup = AsyncMock(return_value="![群友头像 #420px #420px](example)")
+    posted = AsyncMock(return_value=200)
+    monkeypatch.setattr(draw, "get_avatar_sources", avatar_lookup)
+    monkeypatch.setattr(official_draw, "markdown_image", markup)
+    monkeypatch.setattr(message, "_post", posted)
+
+    replies = [
+        result
+        async for result in draw._send_result(
+            plugin,
+            event,
+            "user",
+            "你今天包了二奶！",
+            [{"wife_id": "first"}, {"wife_id": "second"}],
+        )
+    ]
+
+    assert not replies
+    avatar_lookup.assert_awaited_once_with(plugin, event, ["first", "second"])
+    markup.assert_awaited_once_with(url)
+    assert (
+        "![群友头像 #420px #420px]" in posted.await_args.args[2]["markdown"]["content"]
+    )
 
 
 @pytest.mark.asyncio
@@ -166,6 +202,7 @@ def test_six_candidates_fit_the_keyboard_and_only_owner_can_send():
 
 class ImageResponse:
     status = 200
+    headers = {}
 
     def __init__(self, data):
         self.content = self
@@ -207,7 +244,10 @@ async def test_avatars_fit_both_display_limits_at_their_original_ratio(
             assert not allow_redirects
             return response
 
-    monkeypatch.setattr(images.aiohttp, "ClientSession", FakeSession)
-    result = await images.markdown_image("https://thirdqq.qlogo.cn/avatar(test).png")
+    monkeypatch.setattr(qq_official_avatars.aiohttp, "ClientSession", FakeSession)
+    width, height = size
+    result = await images.markdown_image(
+        f"https://thirdqq.qlogo.cn/avatar(test).png?w={width}&h={height}"
+    )
     assert rendered in result
     assert "avatar%28test%29.png" in result

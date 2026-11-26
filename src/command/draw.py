@@ -100,12 +100,16 @@ async def _send_result(
     plugin, event, user_id, text, matches=(), *, suffix="", remaining="", notify=False
 ):
     ids = [record["wife_id"] for record in matches]
-    # Keep multi-match replies compact in chat and the official QQ card.
-    avatars = await get_avatar_sources(plugin, event, ids[:1]) if ids else {}
-    avatar_url = avatars.get(ids[0]) if ids else None
+    official = is_qq_official_event(event)
+    # Use one image. QQ can pick another match if the first has no accessible avatar.
+    candidates = ids if official else ids[:1]
+    if official and not plugin.config.get("qq_official_markdown", True):
+        candidates = []
+    avatars = await get_avatar_sources(plugin, event, candidates) if candidates else {}
+    avatar_url = next((avatars[user] for user in candidates if avatars.get(user)), None)
     mentions = ids if notify and plugin.config.get("at_waifu", False) else []
 
-    if is_qq_official_event(event):
+    if official:
         async for result in draw_card(
             plugin,
             event,
@@ -163,7 +167,7 @@ async def _send_round(
     elif round_.outcome in ("double", "harem"):
         heading = tr(plugin, f"draw_{round_.outcome}")
         lines = [f"{index}. 【{name}】" for index, name in enumerate(names, 1)]
-        text = "\n".join([heading, *lines])
+        text = f"{heading}\n\n" + "\n".join(lines)
     else:
         key = "wife_existing" if existing else "draw_result"
         text = tr(plugin, key, wife_name=names[0])

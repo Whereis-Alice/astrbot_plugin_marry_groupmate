@@ -108,7 +108,7 @@ async def test_multi_draw_is_one_round_under_concurrent_requests(game, monkeypat
     assert len(group["records"]) == 2
     assert len(daily_rounds(group, "me")) == 1
     assert "c" in plugin.active_users["g"]
-    assert all("包二奶" in reply[0] for reply in replies)
+    assert all("你今天包了二奶！" in reply[0] for reply in replies)
 
 
 @pytest.mark.asyncio
@@ -122,7 +122,7 @@ async def test_failed_draw_write_can_be_retried(game, monkeypatch):
     assert not Path(plugin.records_file).exists()
 
     replies = [response async for response in draw.cmd_draw_wife(plugin, event)]
-    assert "包二奶" in replies[0]
+    assert "你今天包了二奶！" in replies[0]
     assert len(daily_rounds(get_group_record_data(plugin, "g"), "me")) == 1
 
 

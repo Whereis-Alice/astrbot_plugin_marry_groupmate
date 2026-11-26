@@ -5,6 +5,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ..utils import save_json
+from .qq_official_avatars import avatar_dimensions
 from .telegram_support import is_telegram_event
 
 
@@ -71,7 +72,16 @@ def _asset_url(asset: Any, *, size: int | None = None) -> str:
     return url if url.startswith(("https://", "http://")) else ""
 
 
-def _resolve_appid(plugin, event) -> str:
+def _profile_avatar(author: Any) -> str:
+    return (
+        _asset_url(getattr(author, "display_avatar", None), size=512)
+        or _asset_url(getattr(author, "avatar", None), size=512)
+        or _author_value(author, "avatar_url")
+        or _author_value(author, "avatar")
+    )
+
+
+def _resolve_appid(event) -> str:
     platform = getattr(getattr(event, "bot", None), "platform", None)
     platform_config = getattr(platform, "config", None)
     if isinstance(platform_config, dict):
@@ -155,19 +165,21 @@ def remember_user_profile(plugin, event) -> None:
         or event.get_sender_name()
     )
     card = ""
-    if is_qq_official_event(event):
+    avatar_url = _profile_avatar(author)
+    official = is_qq_official_event(event)
+    if official:
+        get_group_nickname = getattr(event, "get_sender_group_nickname", None)
+        get_extra = getattr(event, "get_extra", None)
         card = (
-            _author_value(author, "card")
+            (get_group_nickname() if callable(get_group_nickname) else None)
+            or _author_value(author, "member_nickname")
+            or _author_value(author, "card")
             or _author_value(author, "group_card")
             or getattr(sender, "card", "")
         )
-    avatar_url = (
-        _asset_url(getattr(author, "display_avatar", None), size=512)
-        or _asset_url(getattr(author, "avatar", None), size=512)
-        or _author_value(author, "avatar_url")
-        or _author_value(author, "avatar")
-    )
-    appid = _resolve_appid(plugin, event) if is_qq_official_event(event) else ""
+        if callable(get_extra):
+            avatar_url = _asset_url(get_extra("sender_avatar")) or avatar_url
+    appid = _resolve_appid(event) if official else ""
     changed = _remember_profile(
         plugin,
         event,
@@ -177,7 +189,7 @@ def remember_user_profile(plugin, event) -> None:
         avatar_url=avatar_url,
         appid=appid,
     )
-    if is_qq_official_event(event):
+    if official:
         # botpy can omit fields that are still present in its preserved payload.
         raw = getattr(event.message_obj, "raw_message", None)
         raw_data = raw if isinstance(raw, dict) else getattr(raw, "raw_data", None)
@@ -191,7 +203,12 @@ def remember_user_profile(plugin, event) -> None:
             changed = _remember_profile(
                 plugin, event, member_id,
                 nickname=_author_value(member, "username") or _author_value(member, "nickname"),
-                card=_author_value(member, "card") or _author_value(member, "group_card"),
+                card=(
+                    _author_value(member, "member_nickname")
+                    or _author_value(member, "card")
+                    or _author_value(member, "group_card")
+                ),
+                avatar_url=_profile_avatar(member),
             ) or changed
     if changed:
         _save_profiles(plugin)
@@ -359,7 +376,11 @@ def get_avatar_url(plugin, event, user_id: str, size: int = 640) -> str | None:
         return None
     if not is_qq_official_event(event):
         return f"https://q4.qlogo.cn/headimg_dl?dst_uin={quote(user_id, safe='')}&spec={size}"
-    appid = str(profile.get("appid", "") or _resolve_appid(plugin, event)).strip()
+    return _official_cdn_avatar(event, user_id, profile)
+
+
+def _official_cdn_avatar(event, user_id: str, profile: dict) -> str | None:
+    appid = str(_resolve_appid(event) or profile.get("appid", "")).strip()
     if not appid:
         return None
     return (
@@ -373,12 +394,22 @@ async def get_avatar_source(plugin, event, user_id: str, size: int = 640) -> str
         from .telegram_support import avatar_source
 
         return await avatar_source(plugin, event, user_id)
-    return get_avatar_url(plugin, event, user_id, size)
+    url = get_avatar_url(plugin, event, user_id, size)
+    if not is_qq_official_event(event) or not url:
+        return url
+    if await avatar_dimensions(url):
+        return url
+
+    profile = _group_profiles(plugin, event).get(user_id, {})
+    fallback = _official_cdn_avatar(event, user_id, profile)
+    if fallback and fallback != url and await avatar_dimensions(fallback):
+        return fallback
+    return None
 
 
 async def get_avatar_sources(plugin, event, user_ids) -> dict:
     """Prepare chart avatars without waiting five seconds for every missing photo."""
-    if not is_telegram_event(event):
+    if not is_telegram_event(event) and not is_qq_official_event(event):
         return {uid: get_avatar_url(plugin, event, uid) for uid in user_ids}
     result = {}
     semaphore = asyncio.Semaphore(6)
